@@ -1,7 +1,7 @@
 ---
 name: Feature Development
 about: 'Task:'
-title: "[FEATURE] Brief description of the feature"
+title: "[Task] "
 labels: ''
 assignees: ''
 
