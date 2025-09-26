@@ -9,6 +9,8 @@ assignees: ''
 
 ## Problem
 
+## Solution
+
 ## Definition of Done
 
 ## Result
