@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-
 const AdminComplaints = () => {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -214,45 +213,40 @@ const AdminComplaints = () => {
   }, []);
 
   const loadComplaints = async () => {
-  setLoading(true);
-  try {
-    // เรียก API จริง
-    const response = await fetch('https://6b6vjj3okm2652ezyfyxj3vbky0ibkiq.lambda-url.us-east-1.on.aws/');
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
+    setLoading(true);
+    try {
+      // TODO: แทนที่ด้วย API call จริง
+      // const response = await fetch('YOUR_LAMBDA_API_URL/complaints');
+      // const data = await response.json();
+      // setComplaints(data);
+      
+      // ใช้ Mock Data ก่อน
+      setTimeout(() => {
+        setComplaints(mockComplaints);
+        setLoading(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error loading complaints:', error);
+      setLoading(false);
     }
-
-    const data = await response.json();
-
-    console.log('📦 API response:', data);
-
-    // สมมติ API ส่งข้อมูลเป็น array ของ complaints
-    setComplaints(data);
-  } catch (error) {
-    console.error('Error loading complaints:', error);
-
-    // fallback: ถ้าโหลด API ไม่ได้ ให้ใช้ mock data แทน
-    setComplaints(mockComplaints);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   // Filter data
   const filteredComplaints = complaints.filter(complaint => {
-    const matchSearch = 
-      complaint.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.location.toLowerCase().includes(searchTerm.toLowerCase());
+  const search = searchTerm.toLowerCase();
+  const matchSearch = 
+    (complaint.description?.toLowerCase() || '').includes(search) ||
+    (complaint.category?.toLowerCase() || '').includes(search) ||
+    (complaint.subCategory?.toLowerCase() || '').includes(search);
 
-    const matchCategory = !filters.category || complaint.category === filters.category;
-    const matchSubCategory = !filters.subCategory || complaint.subCategory === filters.subCategory;
-    const matchStatus = !filters.status || complaint.status === filters.status;
-    const matchGender = !filters.gender || complaint.gender === filters.gender;
+  const matchCategory = !filters.category || complaint.category === filters.category;
+  const matchSubCategory = !filters.subCategory || complaint.subCategory === filters.subCategory;
+  const matchStatus = !filters.status || complaint.status === filters.status;
+  const matchGender = !filters.gender || complaint.gender === filters.gender;
 
-    return matchSearch && matchCategory && matchSubCategory && matchStatus && matchGender;
-  });
+  return matchSearch && matchCategory && matchSubCategory && matchStatus && matchGender;
+});
+
 
   return (
     <div className="space-y-6">
