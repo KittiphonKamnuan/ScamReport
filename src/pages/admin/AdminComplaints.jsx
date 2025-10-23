@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+
 const AdminComplaints = () => {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -213,23 +214,30 @@ const AdminComplaints = () => {
   }, []);
 
   const loadComplaints = async () => {
-    setLoading(true);
-    try {
-      // TODO: แทนที่ด้วย API call จริง
-      // const response = await fetch('YOUR_LAMBDA_API_URL/complaints');
-      // const data = await response.json();
-      // setComplaints(data);
-      
-      // ใช้ Mock Data ก่อน
-      setTimeout(() => {
-        setComplaints(mockComplaints);
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error('Error loading complaints:', error);
-      setLoading(false);
+  setLoading(true);
+  try {
+    // เรียก API จริง
+    const response = await fetch('https://6b6vjj3okm2652ezyfyxj3vbky0ibkiq.lambda-url.us-east-1.on.aws/');
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
     }
-  };
+
+    const data = await response.json();
+
+    console.log('📦 API response:', data);
+
+    // สมมติ API ส่งข้อมูลเป็น array ของ complaints
+    setComplaints(data);
+  } catch (error) {
+    console.error('Error loading complaints:', error);
+
+    // fallback: ถ้าโหลด API ไม่ได้ ให้ใช้ mock data แทน
+    setComplaints(mockComplaints);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Filter data
   const filteredComplaints = complaints.filter(complaint => {
@@ -325,7 +333,7 @@ const AdminComplaints = () => {
                   <th className="px-4 py-3 text-left text-sm font-semibold">กรณีเป็นตัวแทนระบุชื่อชุมชน/หน่วยงาน</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">กรณีเป็นตัวแทนระบุจำนวนผู้ที่ได้รับ</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">ปี</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">แก้ไข</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -357,7 +365,7 @@ const AdminComplaints = () => {
                       <td className="px-4 py-3 text-sm text-center">{complaint.year}</td>
                       <td className="px-4 py-3 text-sm text-center">
                         <button className="text-orange-600 hover:text-orange-700 font-medium">
-                          แก้ไข
+                          แชท
                         </button>
                       </td>
                     </tr>
