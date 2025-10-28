@@ -1,42 +1,81 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useLambdaApi } from '../../hooks/useLambdaApi';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats] = useState({
-    totalCases: 9999,
-    totalAmount: 99999999999,
-    victimCount: 999999
+  const { getDashboardStats, getChartData, getNewScamTypes, loading } = useLambdaApi();
+  
+  // ข้อมูลจริงจาก API
+  const [stats, setStats] = useState({
+    totalCases: 0,
+    totalAmount: 0,
+    victimCount: 0
   });
-
+  
   const [chartFilter, setChartFilter] = useState('month');
+  const [chartData, setChartData] = useState([]);
+  const [newScamTypes, setNewScamTypes] = useState([]);
+  
 
-  // Mock data for chart - จำนวนเคสต่อเดือน
-  const chartData = [
-    { month: 'ม.ค.', value: 9500 },
-    { month: 'ก.พ.', value: 14500 },
-    { month: 'มี.ค.', value: 12000 },
-    { month: 'เม.ย.', value: 7500 },
-    { month: 'พ.ค.', value: 17000 },
-    { month: 'มิ.ย.', value: 7500 },
-    { month: 'ก.ค.', value: 14500 },
-    { month: 'ส.ค.', value: 19500 },
-    { month: 'ก.ย.', value: 9500 },
-    { month: 'ต.ค.', value: 12500 },
-    { month: 'พ.ย.', value: 14500 },
-    { month: 'ธ.ค.', value: 7500 },
-    { month: 'พ.ย.', value: 12500 }
-  ];
+  // ดึงข้อมูลสถิติจาก Lambda
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const result = await getDashboardStats();
+        console.log('✅ Dashboard Stats:', result);
+        
+        setStats({
+          totalCases: result.totalCases || 0,
+          totalAmount: result.totalAmount || 0,
+          victimCount: result.victimCount || 0
+        });
+      } catch (error) {
+        console.error('❌ Error fetching stats:', error);
+      }
+    };
+    
+    fetchStats();
+  }, []);
 
-  // New scam types
-  const newScamTypes = [
-    { name: 'AI Voice Scam', contact: 'ไผ่', phone: '0999999999' },
-    { name: 'Deepfake Scam', contact: 'หนุ่ม', phone: '0888888888' },
-    { name: 'Investment Bot', contact: 'มาร์ค', phone: '0987654321' },
-    { name: 'Subscription Trap', contact: 'ครีม', phone: '0977777777' }
-  ];
+  // ดึงข้อมูล Chart จาก Lambda
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        const result = await getChartData(chartFilter);
+        console.log('✅ Chart Data:', result);
+        
+        setChartData(result.chartData || []);
+      } catch (error) {
+        console.error('❌ Error fetching chart data:', error);
+      }
+    };
+    
+    fetchChartData();
+  }, [chartFilter]);
 
-  const maxValue = Math.max(...chartData.map(d => d.value));
+  // ดึงกลโกงรูปแบบใหม่จาก Lambda
+  useEffect(() => {
+    const fetchNewScams = async () => {
+      try {
+        const result = await getNewScamTypes(4);
+        console.log('✅ New Scam Types:', result);
+        
+        setNewScamTypes(result.scamTypes || []);
+      } catch (error) {
+        console.error('❌ Error fetching new scam types:', error);
+      }
+    };
+    
+    fetchNewScams();
+  }, []);
+
+
+  // แปลง chartData เป็นตัวเลขชัวร์ ๆ
+  const numericChartData = chartData.map(d => ({label: d.label,value: Number(d.value) || 0 }));
+
+  // คำนวณ maxValue จาก numericChartData
+  const maxValue = numericChartData.length > 0 ? Math.max(...numericChartData.map(d => d.value)) : 0;
 
   return (
     <div className="space-y-6">
@@ -142,36 +181,38 @@ const AdminDashboard = () => {
           </div>
 
           {/* Bar Chart */}
-          <div className="relative h-80">
+          <div className="ml-12 relative" style={{ height: 320 }}>
             {/* Y-axis labels */}
             <div className="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-xs text-gray-500">
-              <span>25 k</span>
-              <span>20 k</span>
-              <span>15 k</span>
-              <span>10 k</span>
-              <span>5 k</span>
-              <span>0 k</span>
+              {[0, 0.25, 0.5, 0.75, 1].reverse().map((ratio, idx) => (
+                <span key={idx}>{Math.round(maxValue * ratio)}</span>
+              ))}
             </div>
 
-            {/* Chart area */}
-            <div className="ml-12 h-full flex items-end gap-4 pb-8">
-              {chartData.map((item, index) => {
-                const height = (item.value / maxValue) * 100;
-                return (
-                  <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                    <div
-                      className="w-full bg-orange-500 rounded-t-lg transition-all duration-300 hover:bg-orange-600 cursor-pointer"
-                      style={{ height: `${height}%` }}
-                      title={`${item.month}: ${item.value.toLocaleString()}`}
-                    ></div>
-                    <span className="text-xs text-gray-600 font-medium">{item.month}</span>
-                  </div>
-                );
-              })}
+            <div className="ml-12 relative" style={{ height: 320 }}>
+              {/* Chart area */}
+              <div className="absolute bottom-0 left-0 right-0 flex items-end gap-4 z-10">
+                {numericChartData.map((item, index) => {
+                  const BAR_CHART_HEIGHT = 320; // ความสูง container
+                  const BAR_TOP_PADDING_RATIO = 0.07; // padding ด้านบน
+                  const heightPx = maxValue > 0 ? ((item.value / maxValue) * (1 - BAR_TOP_PADDING_RATIO) * BAR_CHART_HEIGHT): 0;
+                  return (
+                    <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                      <div
+                        className="w-full bg-orange-500 rounded-t-lg transition-all duration-300 hover:bg-orange-600 cursor-pointer"
+                        //style={{ height: `${height}%` }}
+                        style={{ height: `${heightPx}px` }}
+                        title={`${item.label}: ${item.value.toLocaleString()}`}
+                      ></div>
+                      <span className="text-xs text-gray-600 font-medium">{item.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Horizontal grid lines */}
-            <div className="absolute inset-0 ml-12 pointer-events-none">
+            <div className="absolute inset-0 ml-12 pointer-events-none z-0">
               {[0, 1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
