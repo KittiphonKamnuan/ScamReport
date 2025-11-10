@@ -1,0 +1,309 @@
+// Prisma Schema for ScamReport Database
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== CORE TABLES =====================
+
+// Users table - for authentication and authorization
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  cognitoUserId   String   @unique @map("cognito_user_id")
+  email           String   @unique
+  fullName        String   @map("full_name")
+  role            UserRole
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  complaints               Complaint[]              @relation("AssignedComplaints")
+  journalistFollowups      JournalistFollowup[]
+  verifiedEvidenceChecklist EvidenceChecklist[]     @relation("VerifiedBy")
+  createdAuditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  admin
+  journalist
+  moderator
+  viewer
+}
+
+// Complaints table - main table for storing complaints
+model Complaint {
+  id                  String    @id @default(uuid()) @db.Uuid
+  complaintNumber     String?   @unique @map("complaint_number")
+  title               String // หัวเรื่องร้องเรียน - ฟิลด์สำคัญ!
+  description         String?   @db.Text
+  category            String?
+  urgencyLevel        String?   @map("urgency_level")
+  status              ComplaintStatus @default(pending)
+
+  // Contact Information
+  contactName         String?   @map("contact_name")
+  contactPhone        String?   @map("contact_phone")
+  contactEmail        String?   @map("contact_email")
+  lineId              String?   @map("line_id")
+  lineDisplayName     String?   @map("line_display_name")
+
+  // Financial Information
+  totalLossAmount     Decimal?  @map("total_loss_amount") @db.Decimal(15, 2)
+
+  // Evidence Flags
+  hasPoliceReport     Boolean   @default(false) @map("has_police_report")
+  hasTransferEvidence Boolean   @default(false) @map("has_transfer_evidence")
+
+  // Metadata
+  aiConfidenceScore   Float?    @map("ai_confidence_score")
+  totalMessages       Int       @default(0) @map("total_messages")
+  storyComplexity     String?   @map("story_complexity")
+  psychologicalImpact String?   @map("psychological_impact")
+  consentStatus       ConsentStatus? @map("consent_status")
+  publicationChannel  String?   @map("publication_channel")
+
+  // Assignment
+  assignedTo          String?   @map("assigned_to") @db.Uuid
+  assignedUser        User?     @relation("AssignedComplaints", fields: [assignedTo], references: [id])
+
+  // Timestamps
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  lastMessageAt       DateTime? @map("last_message_at")
+
+  // Relations
+  messages            Message[]
+  summaries           Summary[]
+  attachments         Attachment[]
+  evidenceChecklist   EvidenceChecklist?
+  aiAnalysis          AiAnalysis[]
+  patternMatches      PatternMatch[]
+  journalistFollowups JournalistFollowup[]
+  textToSummarize     TextToSummarize[]
+
+  @@map("complaints")
+}
+
+enum ComplaintStatus {
+  pending
+  reviewing
+  awaiting_evidence
+  evidence_complete
+  journalist_reviewing
+  editorial_approved
+  published
+  rejected
+  closed
+}
+
+enum ConsentStatus {
+  pending
+  approved
+  partial
+  rejected
+}
+
+// Messages table - stores chat messages
+model Message {
+  id          String   @id @default(uuid()) @db.Uuid
+  complaintId String   @map("complaint_id") @db.Uuid
+  senderId    String?  @map("sender_id") @db.Uuid
+  senderType  String?  @map("sender_type") // user, admin, system
+  senderName  String?  @map("sender_name")
+  message     String   @db.Text
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// Summaries table - AI-generated summaries
+model Summary {
+  id          String   @id @default(uuid()) @db.Uuid
+  complaintId String   @map("complaint_id") @db.Uuid
+  summary     String?  @db.Text @map("summary_text")
+  category    String?
+  keywords    String[] @default([])
+  keyPoints   String[] @default([]) @map("key_points")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+}
+
+// ===================== EVIDENCE & VERIFICATION =====================
+
+// Attachments table - file uploads
+model Attachment {
+  id          String   @id @default(uuid()) @db.Uuid
+  complaintId String   @map("complaint_id") @db.Uuid
+  fileName    String   @map("file_name")
+  fileUrl     String   @map("file_url")
+  fileType    String   @map("file_type")
+  fileSize    Int?     @map("file_size")
+  uploadedAt  DateTime @default(now()) @map("uploaded_at")
+
+  // Relations
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+// Evidence Checklist - tracks evidence verification
+model EvidenceChecklist {
+  id                String    @id @default(uuid()) @db.Uuid
+  complaintId       String    @unique @map("complaint_id") @db.Uuid
+  policeReportNumber String?  @map("police_report_number")
+  policeStation     String?   @map("police_station")
+  verifiedBy        String?   @map("verified_by") @db.Uuid
+  verifiedAt        DateTime? @map("verified_at")
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  complaint         Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  verifier          User?     @relation("VerifiedBy", fields: [verifiedBy], references: [id])
+
+  @@map("evidence_checklist")
+}
+
+// ===================== AI & PATTERN MATCHING =====================
+
+// AI Analysis table
+model AiAnalysis {
+  id              String   @id @default(uuid()) @db.Uuid
+  complaintId     String   @map("complaint_id") @db.Uuid
+  analysisType    String   @map("analysis_type") // sentiment, risk, category
+  result          Json
+  confidenceScore Float    @map("confidence_score")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  complaint       Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("ai_analysis")
+}
+
+// Patterns table - fraud patterns
+model Pattern {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?  @db.Text
+  keywords    String[] @default([])
+  severity    String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  patternMatches PatternMatch[]
+
+  @@map("patterns")
+}
+
+// Pattern Matches - links complaints to patterns
+model PatternMatch {
+  id            String   @id @default(uuid()) @db.Uuid
+  complaintId   String   @map("complaint_id") @db.Uuid
+  patternId     String   @map("pattern_id") @db.Uuid
+  matchScore    Float    @map("match_score")
+  matchedAt     DateTime @default(now()) @map("matched_at")
+
+  // Relations
+  complaint     Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  pattern       Pattern   @relation(fields: [patternId], references: [id], onDelete: Cascade)
+
+  @@map("pattern_matches")
+}
+
+// ===================== JOURNALIST WORKFLOW =====================
+
+// Journalist Followups - interview notes
+model JournalistFollowup {
+  id          String   @id @default(uuid()) @db.Uuid
+  complaintId String   @map("complaint_id") @db.Uuid
+  journalistId String  @map("journalist_id") @db.Uuid
+  followupDate DateTime @map("followup_date")
+  notes       String?  @db.Text
+  status      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  journalist  User      @relation(fields: [journalistId], references: [id])
+
+  @@map("journalist_followups")
+}
+
+// Text to Summarize - queue for AI summarization
+model TextToSummarize {
+  id          String   @id @default(uuid()) @db.Uuid
+  complaintId String   @map("complaint_id") @db.Uuid
+  text        String   @db.Text
+  status      String   @default("pending")
+  result      String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  // Relations
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@map("text_to_summarize")
+}
+
+// ===================== SYSTEM TABLES =====================
+
+// Notifications
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  type      String
+  message   String   @db.Text
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
+// Audit Logs
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id") @db.Uuid
+  changes   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// Statistics
+model Statistic {
+  id        String   @id @default(uuid()) @db.Uuid
+  metricName String  @map("metric_name")
+  metricValue Float  @map("metric_value")
+  period    String? // daily, weekly, monthly
+  date      DateTime
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("statistics")
+}

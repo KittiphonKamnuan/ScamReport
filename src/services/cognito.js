@@ -53,10 +53,13 @@ export const cognitoService = {
   logout: async () => {
     try {
       await signOut({ global: true });
-      localStorage.clear();
     } catch (error) {
       console.error('Logout error:', error);
-      localStorage.clear();
+    } finally {
+      // Only clear auth-related items (FIX: Don't clear all localStorage)
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      sessionStorage.clear();
     }
   },
 

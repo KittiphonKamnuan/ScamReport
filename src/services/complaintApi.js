@@ -1,41 +1,172 @@
 // src/services/complaintApi.js
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-lambda-url.amazonaws.com';
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_ADMIN_API_URL;
+
+// สร้าง axios instance
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Interceptor สำหรับเพิ่ม token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Helper function สำหรับ parse Lambda response
+const parseLambdaResponse = (data) => {
+  if (data.body && typeof data.body === 'string') {
+    return JSON.parse(data.body);
+  }
+  return data;
+};
 
 export const complaintApi = {
   // ดึงรายการร้องเรียนทั้งหมด
   getComplaints: async (params = {}) => {
-    const queryString = new URLSearchParams(params).toString();
-    const response = await fetch(`${API_BASE_URL}/complaints?${queryString}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        // เพิ่ม Authorization ถ้ามี
-        // 'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch complaints');
+    try {
+      const response = await apiClient.get('/table/complaints', { params });
+      const data = parseLambdaResponse(response.data);
+      return data.data || data;
+    } catch (error) {
+      console.error('Error fetching complaints:', error);
+      throw error;
     }
-    
-    return response.json();
   },
 
   // ดึงรายการตาม ID
   getComplaintById: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/complaints/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch complaint');
+    try {
+      const response = await apiClient.get(`/table/complaints/${id}`);
+      const data = parseLambdaResponse(response.data);
+      return data.data || data;
+    } catch (error) {
+      console.error(`Error fetching complaint ${id}:`, error);
+      throw error;
     }
-    return response.json();
   },
 
   // สถิติ Dashboard
   getStats: async () => {
-    const response = await fetch(`${API_BASE_URL}/stats`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch stats');
+    try {
+      const response = await apiClient.get('/table/complaints/stats');
+      const data = parseLambdaResponse(response.data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      throw error;
     }
-    return response.json();
+  },
+
+  // ============= Messages API =============
+
+  // ดึงข้อความ/แชททั้งหมดของ complaint
+  getComplaintMessages: async (complaintId) => {
+    try {
+      const response = await apiClient.get(`/table/complaints/${complaintId}/messages`);
+      const data = parseLambdaResponse(response.data);
+      return data.messages || data.data || data;
+    } catch (error) {
+      console.error(`Error fetching messages for complaint ${complaintId}:`, error);
+      throw error;
+    }
+  },
+
+  // ดึง summary ของแชท
+  getComplaintSummary: async (complaintId) => {
+    try {
+      const response = await apiClient.get(`/table/complaints/${complaintId}/summary`);
+      const data = parseLambdaResponse(response.data);
+      return data.summary || data.data || data;
+    } catch (error) {
+      console.error(`Error fetching summary for complaint ${complaintId}:`, error);
+      throw error;
+    }
+  },
+
+  // สร้าง summary ใหม่สำหรับแชท
+  createComplaintSummary: async (complaintId) => {
+    try {
+      const response = await apiClient.post(`/table/complaints/${complaintId}/summary`);
+      const data = parseLambdaResponse(response.data);
+      return data.summary || data.data || data;
+    } catch (error) {
+      console.error(`Error creating summary for complaint ${complaintId}:`, error);
+      throw error;
+    }
+  },
+
+  // ============= Categories API =============
+
+  // ดึง categories ทั้งหมด
+  getCategories: async () => {
+    try {
+      const response = await apiClient.get('/table/categories');
+      const data = parseLambdaResponse(response.data);
+      return data.categories || data.data || data;
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw error;
+    }
+  },
+
+  // ดึง category ตาม ID
+  getCategoryById: async (id) => {
+    try {
+      const response = await apiClient.get(`/table/categories/${id}`);
+      const data = parseLambdaResponse(response.data);
+      return data.category || data.data || data;
+    } catch (error) {
+      console.error(`Error fetching category ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // สร้าง category ใหม่
+  createCategory: async (categoryData) => {
+    try {
+      const response = await apiClient.post('/table/categories', categoryData);
+      const data = parseLambdaResponse(response.data);
+      return data.category || data.data || data;
+    } catch (error) {
+      console.error('Error creating category:', error);
+      throw error;
+    }
+  },
+
+  // อัพเดท category
+  updateCategory: async (id, categoryData) => {
+    try {
+      const response = await apiClient.put(`/table/categories/${id}`, categoryData);
+      const data = parseLambdaResponse(response.data);
+      return data.category || data.data || data;
+    } catch (error) {
+      console.error(`Error updating category ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // ลบ category
+  deleteCategory: async (id) => {
+    try {
+      const response = await apiClient.delete(`/table/categories/${id}`);
+      const data = parseLambdaResponse(response.data);
+      return data;
+    } catch (error) {
+      console.error(`Error deleting category ${id}:`, error);
+      throw error;
+    }
   }
 };

@@ -34,14 +34,22 @@ const Login = () => {
     }
   };
 
-  // ✅ เพิ่มฟังก์ชัน Test Account
+  // Test Account (Only for development - removed in production)
   const fillTestAccount = (type) => {
+    // FIX: Use environment variables instead of hardcoded credentials
+    const isDevelopment = import.meta.env.MODE === 'development';
+
+    if (!isDevelopment) {
+      console.warn('Test accounts are only available in development mode');
+      return;
+    }
+
     if (type === 'admin') {
-      setEmail('admin@thaipbs.or.th');
-      setPassword('Admin@2025');
+      setEmail(import.meta.env.VITE_TEST_ADMIN_EMAIL || 'admin@thaipbs.or.th');
+      setPassword(import.meta.env.VITE_TEST_ADMIN_PASSWORD || '');
     } else {
-      setEmail('journalist@thaipbs.or.th');
-      setPassword('Journalist@2025');
+      setEmail(import.meta.env.VITE_TEST_JOURNALIST_EMAIL || 'journalist@thaipbs.or.th');
+      setPassword(import.meta.env.VITE_TEST_JOURNALIST_PASSWORD || '');
     }
   };
 
@@ -133,24 +141,26 @@ const Login = () => {
             </button>
           </form>
 
-          {/* ✅ Test Accounts Buttons */}
-          <div className="pt-6 border-t border-gray-200">
-            <p className="text-xs text-center text-gray-500 mb-3">บัญชีทดสอบ</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => fillTestAccount('admin')}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg flex items-center justify-center text-sm"
-              >
-                Admin
-              </button>
-              <button
-                onClick={() => fillTestAccount('journalist')}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg flex items-center justify-center text-sm"
-              >
-                Journalist
-              </button>
+          {/* Test Accounts Buttons (Only in development) */}
+          {import.meta.env.MODE === 'development' && (
+            <div className="pt-6 border-t border-gray-200">
+              <p className="text-xs text-center text-gray-500 mb-3">บัญชีทดสอบ (Development Only)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => fillTestAccount('admin')}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg flex items-center justify-center text-sm"
+                >
+                  Admin
+                </button>
+                <button
+                  onClick={() => fillTestAccount('journalist')}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-lg flex items-center justify-center text-sm"
+                >
+                  Journalist
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
