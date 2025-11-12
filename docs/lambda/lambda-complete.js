@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 
 // ===================== ENVIRONMENT VARIABLES =====================
 const DB_HOST = process.env.DB_HOST;
@@ -10,32 +10,43 @@ const DB_SCHEMA = process.env.DB_SCHEMA || 'public';
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || '*';
 const NODE_ENV = process.env.NODE_ENV || 'production';
 
-let _conn_pool = null;
+let pool = null;
 
-// ===================== DATABASE CONNECTION =====================
-async function getDbConnection() {
-    if (_conn_pool !== null) {
-        try {
-            await _conn_pool.query('SELECT 1');
-            return _conn_pool;
-        } catch {
-            _conn_pool = null;
-        }
-    }
+// ===================== DATABASE CONNECTION POOL =====================
+function getDbConnection() {
+    if (pool) return pool;
 
-    _conn_pool = new Client({
+    pool = new Pool({
         user: DB_USER,
         password: DB_PASS,
         host: DB_HOST,
         port: DB_PORT,
         database: DB_NAME,
         ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 10000
+
+        // Pool configuration
+        max: 1,                    // Max connections per Lambda instance
+        min: 0,                    // Don't keep idle connections
+        idleTimeoutMillis: 30000,  // Close idle connections after 30s
+        connectionTimeoutMillis: 10000,
+        allowExitOnIdle: false
     });
 
-    await _conn_pool.connect();
-    await _conn_pool.query(`SET search_path TO ${DB_SCHEMA}, public`);
-    return _conn_pool;
+    // Set search_path on each new connection
+    pool.on('connect', async (client) => {
+        try {
+            await client.query(`SET search_path TO ${DB_SCHEMA}, public`);
+        } catch (err) {
+            console.error('Error setting search_path:', err);
+        }
+    });
+
+    // Log pool errors
+    pool.on('error', (err, client) => {
+        console.error('Unexpected pool error:', err);
+    });
+
+    return pool;
 }
 
 // ===================== SECURITY HELPERS =====================
@@ -98,7 +109,7 @@ exports.handler = async (event) => {
     const queryParams = event.queryStringParameters || {};
 
     try {
-        const conn = await getDbConnection();
+        const conn = getDbConnection();
 
         // ==================== ROUTES ====================
 

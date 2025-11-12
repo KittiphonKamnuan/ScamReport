@@ -1,0 +1,82 @@
+================================================================
+ARM64 Performance Test Results
+================================================================
+Architecture: ARM64 (Graviton2)
+Connection Management: Pool-based (max: 1, idleTimeout: 30s)
+Date: 2025-11-12
+Test Duration: ~3.5 minutes (3 rounds)
+
+================================================================
+Round-by-Round Results:
+================================================================
+
+Round 1 (Cold Start - 22:47:08 to 22:48:29)
+  Duration: ~81 seconds
+  Success Rate: 21% (3 passed, 11 failed)
+  Status: Cold Lambda, connection initialization
+
+Round 2 (Warm - 22:48:34 to 22:48:52)
+  Duration: ~18 seconds
+  Success Rate: 71% (10 passed, 4 failed)
+  Status: Lambda warmed up, optimal performance
+
+Round 3 (Load Test - 22:48:57 to 22:50:37)
+  Duration: ~100 seconds
+  Success Rate: 14% (2 passed, 12 failed)
+  Status: Connection pool exhaustion, high contention
+
+================================================================
+Overall Statistics:
+================================================================
+  Total Tests Run: 42 (14 tests × 3 rounds)
+  ✅ Total Passed: 15
+  ❌ Total Failed: 27
+
+  📈 Average Success Rate: 35.7% (15/42)
+
+  Failed Tests Pattern:
+    - Round 1: Cold start issues, database connection timeouts
+    - Round 2: Mostly successful, 1-2 timeout on large queries
+    - Round 3: Connection pool exhaustion, multiple timeouts
+
+================================================================
+Performance Observations:
+================================================================
+
+  ✅ Strengths:
+    - Fast when warmed up (Round 2: 71%)
+    - Pool prevents connection leaks
+    - Good error handling
+
+  ⚠️ Issues:
+    - Cold start performance poor (21%)
+    - Connection pool exhausts under load (14%)
+    - Inconsistent performance across rounds
+    - High variance in success rates (21% → 71% → 14%)
+
+================================================================
+Technical Details:
+================================================================
+  Lambda Configuration:
+    - Memory: 512 MB (assumed)
+    - Timeout: 30 seconds
+    - Architecture: arm64
+
+  Pool Configuration:
+    - max: 1 connection per instance
+    - min: 0 (no idle connections)
+    - idleTimeoutMillis: 30000
+    - connectionTimeoutMillis: 10000
+
+  RDS Configuration:
+    - Instance Type: Unknown
+    - max_connections: Default (~100)
+
+================================================================
+Next Steps:
+================================================================
+  1. ✅ Switch Lambda to x86_64 architecture
+  2. ⏳ Run same test suite (3 rounds)
+  3. 📊 Compare results
+
+================================================================
