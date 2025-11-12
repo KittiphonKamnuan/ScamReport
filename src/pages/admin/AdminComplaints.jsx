@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { complaintApi } from '../../services/complaintApi';
 
 const AdminComplaints = () => {
-  const [complaints, setComplaints] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     category: '',
@@ -13,63 +12,58 @@ const AdminComplaints = () => {
   });
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showChatModal, setShowChatModal] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatSummary, setChatSummary] = useState(null);
-  const [loadingChat, setLoadingChat] = useState(false);
-  const [error, setError] = useState(null);
 
-  // Load data from API
-  useEffect(() => {
-    loadComplaints();
-  }, []);
-
-  const loadComplaints = async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  // ✨ React Query: Auto-caching complaints list
+  const {
+    data: complaints = [],
+    isLoading: loading,
+    error,
+    refetch: loadComplaints
+  } = useQuery({
+    queryKey: ['complaints'],
+    queryFn: async () => {
       const data = await complaintApi.getComplaints({ limit: 1000 });
-      setComplaints(data && data.length > 0 ? data : []);
-      setError(null);
-    } catch (error) {
-      console.error('Error loading complaints:', error);
-      setError(error.message || 'ไม่สามารถโหลดข้อมูลได้');
-      setComplaints([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data && data.length > 0 ? data : [];
+    },
+    staleTime: 30000,  // 30 seconds
+    cacheTime: 300000, // 5 minutes
+  });
 
-  // เปิด modal แสดงแชท
-  const handleViewChat = async (complaint) => {
+  // ✨ React Query: Auto-caching chat messages
+  const {
+    data: chatMessages = [],
+    isLoading: loadingMessages
+  } = useQuery({
+    queryKey: ['messages', selectedComplaint?.id],
+    queryFn: () => complaintApi.getComplaintMessages(selectedComplaint.id),
+    enabled: !!selectedComplaint && showChatModal,
+    staleTime: 300000, // 5 minutes
+  });
+
+  // ✨ React Query: Auto-caching summary
+  const {
+    data: chatSummary = null,
+    isLoading: loadingSummary
+  } = useQuery({
+    queryKey: ['summary', selectedComplaint?.id],
+    queryFn: () => complaintApi.getComplaintSummary(selectedComplaint.id),
+    enabled: !!selectedComplaint && showChatModal,
+    staleTime: 300000, // 5 minutes
+  });
+
+  const loadingChat = loadingMessages || loadingSummary;
+
+  // เปิด modal แสดงแชท (React Query จะดึงข้อมูลอัตโนมัติ)
+  const handleViewChat = (complaint) => {
     setSelectedComplaint(complaint);
     setShowChatModal(true);
-    setLoadingChat(true);
-    setChatMessages([]);
-    setChatSummary(null);
-
-    try {
-      // ดึงข้อความแชท
-      const messages = await complaintApi.getComplaintMessages(complaint.id);
-      setChatMessages(messages || []);
-
-      // ดึง summary
-      const summary = await complaintApi.getComplaintSummary(complaint.id);
-      setChatSummary(summary);
-    } catch (error) {
-      console.error('Error loading chat:', error);
-      setChatMessages([]);
-      setChatSummary(null);
-    } finally {
-      setLoadingChat(false);
-    }
+    // ✨ React Query จะ fetch messages และ summary อัตโนมัติ
   };
 
   // ปิด modal
   const handleCloseModal = () => {
     setShowChatModal(false);
     setSelectedComplaint(null);
-    setChatMessages([]);
-    setChatSummary(null);
   };
 
   // Filter data
