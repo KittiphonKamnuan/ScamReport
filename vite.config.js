@@ -50,5 +50,22 @@ export default defineConfig({
         }
       }
     }
+  },
+
+  // Build optimization
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // แยก vendor chunks เพื่อ caching ที่ดีขึ้น
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'aws-vendor': ['amazon-cognito-identity-js']
+        }
+      }
+    },
+    // Minify with esbuild (faster than terser and built-in)
+    minify: 'esbuild',
+    // Chunk size warning limit
+    chunkSizeWarningLimit: 500
   }
 })
