@@ -18,17 +18,56 @@ const Login = () => {
     setLoading(true);
 
     try {
+      console.log('🔐 Login.jsx: Attempting login...');
+      
       const userData = await login(email, password);
       
-      if (userData.role === 'Admins') {
-        navigate('/admin/dashboard');
-      } else if (userData.role === 'Journalists') {
-        navigate('/journalist/dashboard');
+      console.log('✅ Login.jsx: Login successful:', userData);
+      console.log('✅ User role:', userData.role);
+      console.log('✅ User groups:', userData.groups);
+
+      // Redirect based on role or email (fallback)
+      let redirectPath = '/dashboard'; // default
+
+      if (userData.role === 'Admins' || userData.groups.includes('Admins')) {
+        redirectPath = '/admin/dashboard';
+      } else if (userData.role === 'Journalists' || userData.groups.includes('Journalists')) {
+        redirectPath = '/journalist/dashboard';
       } else {
-        navigate('/dashboard');
+        // Fallback: ถ้าไม่มี group ให้เช็คจาก email
+        if (email.includes('admin')) {
+          console.warn('⚠️ No group found, routing based on email (admin)');
+          redirectPath = '/admin/dashboard';
+        } else if (email.includes('journalist')) {
+          console.warn('⚠️ No group found, routing based on email (journalist)');
+          redirectPath = '/journalist/dashboard';
+        } else {
+          // ถ้าไม่ตรงเงื่อนไขไหนเลย ให้แสดง error
+          setError('บัญชีของคุณยังไม่ได้รับสิทธิ์ กรุณาติดต่อผู้ดูแลระบบ');
+          setLoading(false);
+          return;
+        }
       }
+
+      console.log('✅ Login.jsx: Navigating to:', redirectPath);
+      navigate(redirectPath, { replace: true });
+      
     } catch (err) {
-      setError(err.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน');
+      console.error('❌ Login.jsx: Login failed:', err);
+      
+      let errorMessage = 'เข้าสู่ระบบไม่สำเร็จ';
+      
+      if (err.name === 'NotAuthorizedException') {
+        errorMessage = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+      } else if (err.name === 'UserNotFoundException') {
+        errorMessage = 'ไม่พบผู้ใช้งานนี้';
+      } else if (err.name === 'UserNotConfirmedException') {
+        errorMessage = 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -36,7 +75,6 @@ const Login = () => {
 
   // Test Account (Only for development - removed in production)
   const fillTestAccount = (type) => {
-    // FIX: Use environment variables instead of hardcoded credentials
     const isDevelopment = import.meta.env.MODE === 'development';
 
     if (!isDevelopment) {
@@ -46,10 +84,10 @@ const Login = () => {
 
     if (type === 'admin') {
       setEmail(import.meta.env.VITE_TEST_ADMIN_EMAIL || 'admin@thaipbs.or.th');
-      setPassword(import.meta.env.VITE_TEST_ADMIN_PASSWORD || '');
+      setPassword(import.meta.env.VITE_TEST_ADMIN_PASSWORD || 'Admin@2025');
     } else {
       setEmail(import.meta.env.VITE_TEST_JOURNALIST_EMAIL || 'journalist@thaipbs.or.th');
-      setPassword(import.meta.env.VITE_TEST_JOURNALIST_PASSWORD || '');
+      setPassword(import.meta.env.VITE_TEST_JOURNALIST_PASSWORD || 'Journalist@2025');
     }
   };
 
