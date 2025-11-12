@@ -110,10 +110,12 @@ Create `.env` file:
 
 ```bash
 # API Configuration
-VITE_API_BASE_URL=https://ijjwak4ivyywk7fy6xmsc2ctry0lgmma.lambda-url.us-east-1.on.aws
+VITE_API_BASE_URL=https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws
+VITE_REGION=us-east-1
 
-# Development (optional - uses Vite proxy)
-# VITE_API_BASE_URL=
+# Development Only - Test Credentials
+VITE_TEST_ADMIN_EMAIL=admin@thaipbs.or.th
+VITE_TEST_ADMIN_PASSWORD=your-password
 ```
 
 ### Vite Proxy (Development)
@@ -124,8 +126,8 @@ File: `vite.config.js`
 export default defineConfig({
   server: {
     proxy: {
-      '^/(table|connection)': {
-        target: 'https://ijjwak4ivyywk7fy6xmsc2ctry0lgmma.lambda-url.us-east-1.on.aws',
+      '^/(table|users|user|connection)': {
+        target: 'https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws',
         changeOrigin: true,
         secure: false
       }
@@ -147,7 +149,7 @@ export default defineConfig({
 
 **URL:**
 ```
-https://ijjwak4ivyywk7fy6xmsc2ctry0lgmma.lambda-url.us-east-1.on.aws
+https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws
 ```
 
 ### Key Endpoints
@@ -287,23 +289,36 @@ npm run preview
 
 **✅ Working:**
 - Complaint management
+- Service history tracking
 - Message history with titles
 - Role-based dashboards
 - Lambda API integration
 - Database connectivity
+- Auto deployment via Vercel
 
 ---
 
-**Lambda URL:**
+## 🌐 Deployment
+
+### Production
+**URL:** https://scam-report.vercel.app
+
+**Lambda API:**
 ```
-https://ijjwak4ivyywk7fy6xmsc2ctry0lgmma.lambda-url.us-east-1.on.aws
+https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws
 ```
 
-**Frontend (Dev):**
-```
-http://localhost:5173
-```
+**Deployment:** Automatic via Vercel
+- Push to `main` → Auto deploy to production
+- Create PR → Auto preview deployment
 
-**Status:** ✅ Production Ready
+See [VERCEL_DEPLOYMENT.md](./docs/VERCEL_DEPLOYMENT.md) for details.
 
-**Last Updated:** 2025-11-11
+### Development
+**URL:** http://localhost:5173
+
+---
+
+**Status:** ✅ Production Ready & Deployed
+
+**Last Updated:** 2025-11-12
