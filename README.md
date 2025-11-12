@@ -110,13 +110,15 @@ Create `.env` file:
 
 ```bash
 # API Configuration
-VITE_API_BASE_URL=https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws
+VITE_API_BASE_URL=https://your-lambda-url.lambda-url.us-east-1.on.aws
 VITE_REGION=us-east-1
 
 # Development Only - Test Credentials
-VITE_TEST_ADMIN_EMAIL=admin@thaipbs.or.th
+VITE_TEST_ADMIN_EMAIL=admin@example.com
 VITE_TEST_ADMIN_PASSWORD=your-password
 ```
+
+> **Note:** Copy `.env.example` to `.env` and fill in your actual values. See `.env.example` for template.
 
 ### Vite Proxy (Development)
 
@@ -127,7 +129,7 @@ export default defineConfig({
   server: {
     proxy: {
       '^/(table|users|user|connection)': {
-        target: 'https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws',
+        target: process.env.VITE_API_BASE_URL || 'https://your-lambda-url.lambda-url.us-east-1.on.aws',
         changeOrigin: true,
         secure: false
       }
@@ -135,6 +137,8 @@ export default defineConfig({
   }
 })
 ```
+
+> **Note:** The actual Lambda URL is configured in `.env` file (not in this config file).
 
 **Benefits:**
 - ✅ No CORS issues in development
@@ -147,9 +151,11 @@ export default defineConfig({
 
 ### Lambda API
 
-**URL:**
+**URL:** See `.env` file (not published in documentation for security)
+
+**Format:**
 ```
-https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws
+https://[function-id].lambda-url.[region].on.aws
 ```
 
 ### Key Endpoints
@@ -303,10 +309,7 @@ npm run preview
 ### Production
 **URL:** https://scam-report.vercel.app
 
-**Lambda API:**
-```
-https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws
-```
+**Lambda API:** Configured via environment variables (see `.env`)
 
 **Deployment:** Automatic via Vercel
 - Push to `main` → Auto deploy to production
