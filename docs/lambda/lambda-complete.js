@@ -12,6 +12,66 @@ const NODE_ENV = process.env.NODE_ENV || 'production';
 
 let pool = null;
 
+// ===================== IN-MEMORY CACHE =====================
+const cache = {
+    data: new Map(),
+
+    // Get cached data if valid
+    get(key) {
+        const cached = this.data.get(key);
+        if (!cached) return null;
+
+        const now = Date.now();
+        if (now - cached.timestamp > cached.ttl) {
+            // Cache expired
+            this.data.delete(key);
+            return null;
+        }
+
+        return cached.value;
+    },
+
+    // Set cache with TTL
+    set(key, value, ttl = 60000) {
+        this.data.set(key, {
+            value,
+            timestamp: Date.now(),
+            ttl
+        });
+    },
+
+    // Clear cache by key or pattern
+    clear(pattern) {
+        if (!pattern) {
+            this.data.clear();
+            return;
+        }
+
+        for (const key of this.data.keys()) {
+            if (key.includes(pattern)) {
+                this.data.delete(key);
+            }
+        }
+    },
+
+    // Get cache stats
+    stats() {
+        return {
+            size: this.data.size,
+            keys: Array.from(this.data.keys())
+        };
+    }
+};
+
+// Cache TTL configuration (in milliseconds)
+const CACHE_TTL = {
+    complaints_list: 60000,      // 60 seconds - high traffic
+    complaint_detail: 300000,    // 5 minutes - less frequent updates
+    statistics: 600000,          // 10 minutes - rarely changes
+    messages: 300000,            // 5 minutes
+    summaries: 300000            // 5 minutes
+};
+
 // ===================== DATABASE CONNECTION POOL =====================
 function getDbConnection() {
     if (pool) return pool;
@@ -389,6 +449,16 @@ async function getComplaintSummary(conn, complaintId, origin) {
 async function getServiceHistoryStats(conn, queryParams, origin) {
     try {
         const year = queryParams.year;
+
+        // ========== CACHE CHECK ==========
+        const cacheKey = `stats_service_history${year ? `_y${year}` : '_all'}`;
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            console.log(`✅ Cache HIT: ${cacheKey}`);
+            return response(200, cached, origin);
+        }
+        console.log(`❌ Cache MISS: ${cacheKey}`);
+
         const whereClause = year ? `WHERE year = ${parseInt(year)}` : '';
 
         const statsQuery = `
@@ -434,11 +504,17 @@ async function getServiceHistoryStats(conn, queryParams, origin) {
 
         const issueResult = await conn.query(issueQuery);
 
-        return response(200, {
+        const result = {
             overall: statsResult.rows[0],
             by_province: provinceResult.rows,
             by_issue_type: issueResult.rows
-        }, origin);
+        };
+
+        // ========== CACHE SAVE ==========
+        cache.set(cacheKey, result, CACHE_TTL.statistics);
+        console.log(`💾 Cached: ${cacheKey} (TTL: ${CACHE_TTL.statistics}ms)`);
+
+        return response(200, result, origin);
     } catch (error) {
         console.error('Error fetching service history stats:', error);
         return response(500, {
@@ -493,6 +569,10 @@ async function createServiceHistory(conn, body, origin) {
         ];
 
         const result = await conn.query(query, values);
+
+        // ========== CACHE INVALIDATION ==========
+        cache.clear('stats_service_history');
+        console.log('🗑️  Cleared cache: stats_service_history*');
 
         return response(201, {
             data: result.rows[0],
@@ -570,6 +650,11 @@ async function updateServiceHistory(conn, recordId, body, origin) {
 
         const result = await conn.query(query, values);
 
+        // ========== CACHE INVALIDATION ==========
+        cache.clear('stats_service_history');
+        cache.clear(`detail_service_history_${recordId}`);
+        console.log(`🗑️  Cleared cache: stats & detail for ${recordId}`);
+
         return response(200, {
             data: result.rows[0],
             message: 'Service history record updated successfully'
@@ -601,6 +686,11 @@ async function deleteServiceHistory(conn, recordId, origin) {
         const query = 'DELETE FROM service_history WHERE id = $1 RETURNING *';
         const result = await conn.query(query, [recordId]);
 
+        // ========== CACHE INVALIDATION ==========
+        cache.clear('stats_service_history');
+        cache.clear(`detail_service_history_${recordId}`);
+        console.log(`🗑️  Cleared cache: stats & detail for ${recordId}`);
+
         return response(200, {
             data: result.rows[0],
             message: 'Service history record deleted successfully'
@@ -624,6 +714,15 @@ async function getTableRecords(conn, tableName, params, origin) {
     const page = Math.max(1, parseInt(params.page || '1'));
     const limit = Math.min(10000, Math.max(1, parseInt(params.limit || '10')));
     const offset = (page - 1) * limit;
+
+    // ========== CACHE CHECK ==========
+    const cacheKey = `table_${sanitized}_p${page}_l${limit}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        console.log(`✅ Cache HIT: ${cacheKey}`);
+        return response(200, cached, origin);
+    }
+    console.log(`❌ Cache MISS: ${cacheKey}`);
 
     // Get column names
     const colQuery = `
@@ -660,7 +759,7 @@ async function getTableRecords(conn, tableName, params, origin) {
         return obj;
     });
 
-    return response(200, {
+    const result = {
         columns: colNames,
         data,
         pagination: {
@@ -670,7 +769,15 @@ async function getTableRecords(conn, tableName, params, origin) {
             pages: Math.ceil(total / limit),
             hasMore: (page * limit) < total
         }
-    }, origin);
+    };
+
+    // ========== CACHE SAVE ==========
+    // Use different TTL based on table
+    const ttl = sanitized === 'complaints' ? CACHE_TTL.complaints_list : CACHE_TTL.messages;
+    cache.set(cacheKey, result, ttl);
+    console.log(`💾 Cached: ${cacheKey} (TTL: ${ttl}ms)`);
+
+    return response(200, result, origin);
 }
 
 async function getTableRecordById(conn, tableName, recordId, origin) {
@@ -682,6 +789,15 @@ async function getTableRecordById(conn, tableName, recordId, origin) {
     if (!isValidUUID(recordId)) {
         return response(400, { error: 'Invalid record ID format' }, origin);
     }
+
+    // ========== CACHE CHECK ==========
+    const cacheKey = `detail_${sanitized}_${recordId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        console.log(`✅ Cache HIT: ${cacheKey}`);
+        return response(200, cached, origin);
+    }
+    console.log(`❌ Cache MISS: ${cacheKey}`);
 
     // Get column names
     const colQuery = `
@@ -710,10 +826,16 @@ async function getTableRecordById(conn, tableName, recordId, origin) {
         obj[col] = result.rows[0][col];
     });
 
-    return response(200, {
+    const resultData = {
         columns: colNames,
         data: obj
-    }, origin);
+    };
+
+    // ========== CACHE SAVE ==========
+    cache.set(cacheKey, resultData, CACHE_TTL.complaint_detail);
+    console.log(`💾 Cached: ${cacheKey} (TTL: ${CACHE_TTL.complaint_detail}ms)`);
+
+    return response(200, resultData, origin);
 }
 
 // ===================== CONNECTION TEST =====================
