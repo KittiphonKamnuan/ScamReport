@@ -1,7 +1,13 @@
 // src/services/complaintApi.js
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_ADMIN_API_URL;
+// ใช้ relative URL ใน development (จะผ่าน Vite proxy)
+// ใช้ Lambda URL จริงใน production
+const API_BASE_URL = import.meta.env.DEV
+  ? '' // Development: ใช้ relative URL (Vite proxy จะจัดการ CORS)
+  : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_ADMIN_API_URL);
+
+console.log('API_BASE_URL:', API_BASE_URL, 'Mode:', import.meta.env.MODE);
 
 // สร้าง axios instance
 const apiClient = axios.create({
@@ -11,19 +17,19 @@ const apiClient = axios.create({
   }
 });
 
-// Interceptor สำหรับเพิ่ม token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// Interceptor สำหรับเพิ่ม token (ปิดไว้ก่อนเพราะ Lambda ไม่ได้ใช้ JWT auth)
+// apiClient.interceptors.request.use(
+//   (config) => {
+//     const token = localStorage.getItem('authToken');
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+//     return config;
+//   },
+//   (error) => {
+//     return Promise.reject(error);
+//   }
+// );
 
 // Helper function สำหรับ parse Lambda response
 const parseLambdaResponse = (data) => {
@@ -72,12 +78,13 @@ export const complaintApi = {
 
   // ============= Messages API =============
 
-  // ดึงข้อความ/แชททั้งหมดของ complaint
+  // ดึงข้อความ/แชททั้งหมดของ complaint (พร้อม complaint_title)
   getComplaintMessages: async (complaintId) => {
     try {
       const response = await apiClient.get(`/table/complaints/${complaintId}/messages`);
       const data = parseLambdaResponse(response.data);
-      return data.messages || data.data || data;
+      // Return ทั้ง response เพื่อรวม complaint_title และ complaint_status
+      return data;
     } catch (error) {
       console.error(`Error fetching messages for complaint ${complaintId}:`, error);
       throw error;

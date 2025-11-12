@@ -10,32 +10,7 @@ const ComplaintsPage = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatSummary, setChatSummary] = useState(null);
   const [loadingChat, setLoadingChat] = useState(false);
-
-  // Mock Data สำหรับ fallback
-  const mockComplaints = [
-    {
-      id: 1,
-      title: 'การฉ้อโกงลงทุนออนไลน์',
-      description: 'ถูกหลอกลงทุนในโครงการคริปโตสกุลเงินดิจิทัล โอนเงินไปแล้วติดต่อไม่ได้',
-      category: 'fraud',
-      priority: 'high',
-      amount: '500,000',
-      date: '2025-10-02',
-      reporter: 'นาย ก. (ไม่เปิดเผย)',
-      status: 'verified'
-    },
-    {
-      id: 2,
-      title: 'หลอกขายสินค้าออนไลน์',
-      description: 'สั่งซื้อสินค้าออนไลน์ โอนเงินแล้วไม่ได้รับสินค้า',
-      category: 'fraud',
-      priority: 'medium',
-      amount: '15,000',
-      date: '2025-10-01',
-      reporter: 'นางสาว ข.',
-      status: 'verified'
-    }
-  ];
+  const [error, setError] = useState(null);
 
   // โหลดข้อมูลจาก API
   useEffect(() => {
@@ -44,6 +19,7 @@ const ComplaintsPage = () => {
 
   const loadComplaints = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await complaintApi.getComplaints({ limit: 1000 });
 
@@ -51,22 +27,24 @@ const ComplaintsPage = () => {
         // แปลงข้อมูลจาก API ให้ตรงกับ format ที่ใช้
         const formattedData = data.map((item, idx) => ({
           id: item.id || idx + 1,
-          title: item.description?.substring(0, 50) || 'ไม่มีหัวข้อ',
+          title: item.title || item.description?.substring(0, 50) || 'ไม่มีหัวข้อ',
           description: item.description || 'ไม่มีรายละเอียด',
           category: item.status || item.category || 'fraud',
           priority: idx % 2 === 0 ? 'high' : 'medium',
-          amount: item.description?.match(/\d{1,3}(,\d{3})*/)?.[0] || '0',
-          date: item.date || item.created_at || new Date().toISOString().split('T')[0],
-          reporter: item.reporter || 'ไม่เปิดเผยชื่อ',
+          amount: item.financial_damage || item.description?.match(/\d{1,3}(,\d{3})*/)?.[0] || '0',
+          date: item.created_at || new Date().toISOString().split('T')[0],
+          reporter: item.contact_name || 'ไม่เปิดเผยชื่อ',
           status: 'verified'
         }));
         setComplaints(formattedData);
       } else {
-        setComplaints(mockComplaints);
+        setComplaints([]);
       }
+      setError(null);
     } catch (error) {
       console.error('Error loading complaints:', error);
-      setComplaints(mockComplaints);
+      setError(error.message || 'ไม่สามารถโหลดข้อมูลได้');
+      setComplaints([]);
     } finally {
       setLoading(false);
     }
@@ -89,30 +67,8 @@ const ComplaintsPage = () => {
       setChatSummary(summary);
     } catch (error) {
       console.error('Error loading chat:', error);
-      // ถ้า API ไม่มีข้อมูล ใช้ mock data
-      setChatMessages([
-        {
-          id: 1,
-          sender: 'ผู้ร้องเรียน',
-          message: complaint.description || 'ไม่มีข้อมูล',
-          timestamp: complaint.date || new Date().toISOString(),
-          type: 'user'
-        },
-        {
-          id: 2,
-          sender: 'เจ้าหน้าที่',
-          message: 'ขอบคุณสำหรับข้อมูล เราได้รับเรื่องแล้วและจะดำเนินการตรวจสอบ',
-          timestamp: new Date().toISOString(),
-          type: 'admin'
-        }
-      ]);
-
-      setChatSummary({
-        summary: complaint.description || 'ไม่มีข้อมูลสรุป',
-        category: complaint.category || 'ไม่ระบุ',
-        amount: '฿' + complaint.amount,
-        keywords: ['การฉ้อโกง', 'ออนไลน์'].filter(Boolean)
-      });
+      setChatMessages([]);
+      setChatSummary(null);
     } finally {
       setLoadingChat(false);
     }

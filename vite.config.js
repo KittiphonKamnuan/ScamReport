@@ -29,5 +29,26 @@ export default defineConfig({
         NodeModulesPolyfillPlugin()
       ]
     }
+  },
+  server: {
+    proxy: {
+      // Proxy สำหรับ Lambda API (แก้ปัญหา CORS ใน development)
+      '^/(table|users|user|connection)': {
+        target: 'https://hmvc66corvnthoileo5lj233dy0hnaho.lambda-url.us-east-1.on.aws',
+        changeOrigin: true,
+        secure: false,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('❌ Proxy error:', err.message);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('➡️  Proxying:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('✅ Response:', proxyRes.statusCode, req.url);
+          });
+        }
+      }
+    }
   }
 })

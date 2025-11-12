@@ -16,202 +16,7 @@ const AdminComplaints = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatSummary, setChatSummary] = useState(null);
   const [loadingChat, setLoadingChat] = useState(false);
-
-  // Mock Data - ตรงกับรูปที่ส่งมา
-  const mockComplaints = [
-    {
-      id: 1,
-      date: '2/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'มกราคม',
-      description: 'มิจฉาชีพหลอกลงทุน 50,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'ชาย',
-      age: 20,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 2,
-      date: '3/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'มกราคม',
-      description: 'มิจฉาชีพหลอกลงทุน NVDA 50,000,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'ชาย',
-      age: 21,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 3,
-      date: '3/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'มกราคม',
-      description: 'โดนหลอกเงินจาก call center 100,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'หญิง',
-      age: 29,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 4,
-      date: '5/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'มกราคม',
-      description: 'หนุ่มโดนหลอกขายนก 2,500 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'ชาย',
-      age: 100,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 5,
-      date: '7/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'มกราคม',
-      description: 'มาร์คโดน Call Center หลอก 10,000,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'หญิง',
-      age: 35,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 6,
-      date: '7/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'กุมภาพันธ์',
-      description: 'ครีมโดนหลอกซื้อบัตรคอน BUS 6,500 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'หญิง',
-      age: 47,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 7,
-      date: '8/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'กุมภาพันธ์',
-      description: 'ไผ่โดนมิจฉาชีพหลอกเติมเกม 500,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'ชาย',
-      age: 38,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'พ่อค้า',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 8,
-      date: '9/1/2024',
-      category: 'กระบี',
-      subCategory: 'มีนาคม',
-      description: 'แฮมหลอกไผ่ลงทุน 100,000,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'ชาย',
-      age: 22,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 9,
-      date: '9/1/2024',
-      category: 'ปทุมธานี',
-      subCategory: 'มีนาคม',
-      description: 'ไผ่โดนหลอกซื้อกองทุน S&P 500 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'หญิง',
-      age: 44,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักกวี',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 10,
-      date: '9/1/2024',
-      category: 'เชียงใหม่',
-      subCategory: 'เมษายน',
-      description: 'หนุ่มโดนหลอกซื้อจรวดออนไลน์โดยแฮม 20,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'หญิง',
-      age: 32,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'CEO KamnuanTech',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 11,
-      date: '9/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'เมษายน',
-      description: 'มิวโดนสาวหลอกออนไลน์เกือบหมดตัว 150,000 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'ชาย',
-      age: 26,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'นักศึกษา',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    },
-    {
-      id: 12,
-      date: '10/1/2024',
-      category: 'กรุงเทพมหานคร',
-      subCategory: 'พฤษภาคม',
-      description: 'ครับโดนหลอกซื้อบัตรคอน NCT 25,500 บาท',
-      status: 'ปัญหาภัยออนไลน์',
-      gender: 'ชาย',
-      age: 50,
-      utility: 'ได้รับคำแนะนำ',
-      occupation: 'ที่ปรึกษาทางการเงิน',
-      type: 'รับประโยชน์ด้วยตัวเอง',
-      count1: 1,
-      count2: 1,
-      year: 2567
-    }
-  ];
+  const [error, setError] = useState(null);
 
   // Load data from API
   useEffect(() => {
@@ -220,22 +25,15 @@ const AdminComplaints = () => {
 
   const loadComplaints = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // เรียก API จริง
       const data = await complaintApi.getComplaints({ limit: 1000 });
-
-      // ถ้า API ส่งข้อมูลมา ใช้ข้อมูลจาก API
-      // ถ้าไม่มีข้อมูล ใช้ Mock Data
-      if (data && data.length > 0) {
-        setComplaints(data);
-      } else {
-        console.warn('No data from API, using mock data');
-        setComplaints(mockComplaints);
-      }
+      setComplaints(data && data.length > 0 ? data : []);
+      setError(null);
     } catch (error) {
       console.error('Error loading complaints:', error);
-      // ถ้า error ให้ใช้ Mock Data
-      setComplaints(mockComplaints);
+      setError(error.message || 'ไม่สามารถโหลดข้อมูลได้');
+      setComplaints([]);
     } finally {
       setLoading(false);
     }
@@ -259,30 +57,8 @@ const AdminComplaints = () => {
       setChatSummary(summary);
     } catch (error) {
       console.error('Error loading chat:', error);
-      // ถ้า API ไม่มีข้อมูล ใช้ mock data
-      setChatMessages([
-        {
-          id: 1,
-          sender: 'ผู้ร้องเรียน',
-          message: complaint.description || 'ไม่มีข้อมูล',
-          timestamp: complaint.date || new Date().toISOString(),
-          type: 'user'
-        },
-        {
-          id: 2,
-          sender: 'เจ้าหน้าที่',
-          message: 'ขอบคุณสำหรับข้อมูล เราจะดำเนินการตรวจสอบ',
-          timestamp: new Date().toISOString(),
-          type: 'admin'
-        }
-      ]);
-
-      setChatSummary({
-        summary: complaint.description || 'ไม่มีข้อมูลสรุป',
-        category: complaint.category || complaint.status || 'ไม่ระบุ',
-        amount: '฿' + (complaint.description?.match(/\d{1,3}(,\d{3})*(\.\d+)?/)?.[0] || '0'),
-        keywords: ['การฉ้อโกง', 'ออนไลน์', complaint.category || ''].filter(Boolean)
-      });
+      setChatMessages([]);
+      setChatSummary(null);
     } finally {
       setLoadingChat(false);
     }

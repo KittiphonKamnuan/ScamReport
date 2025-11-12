@@ -10,19 +10,19 @@ const apiClient = axios.create({
   }
 });
 
-// Interceptor สำหรับเพิ่ม token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// Interceptor สำหรับเพิ่ม token (ปิดไว้ก่อนเพราะ Lambda ไม่ได้ใช้ JWT auth)
+// apiClient.interceptors.request.use(
+//   (config) => {
+//     const token = localStorage.getItem('authToken');
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+//     return config;
+//   },
+//   (error) => {
+//     return Promise.reject(error);
+//   }
+// );
 
 // Interceptor สำหรับจัดการ error
 apiClient.interceptors.response.use(
