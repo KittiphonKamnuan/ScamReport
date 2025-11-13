@@ -1,127 +1,109 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { complaintApi } from '../../services/complaintApi';
+import { serviceHistoryService } from '../../services/serviceHistoryService';
 
 const AdminComplaints = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
-    category: '',
-    subCategory: '',
+    province: '',
+    issue_type: '',
     status: '',
-    gender: ''
+    gender: '',
+    year: ''
   });
-  const [selectedComplaint, setSelectedComplaint] = useState(null);
-  const [showChatModal, setShowChatModal] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
-  // ✨ React Query: Auto-caching complaints list
+  // ✨ React Query: Auto-caching service history list
   const {
-    data: complaints = [],
+    data: serviceHistory = [],
     isLoading: loading,
     error,
-    refetch: loadComplaints
+    refetch: loadServiceHistory
   } = useQuery({
-    queryKey: ['complaints'],
+    queryKey: ['service-history'],
     queryFn: async () => {
-      const data = await complaintApi.getComplaints({ limit: 1000 });
+      const data = await serviceHistoryService.getServiceHistory({ limit: 1000 });
       return data && data.length > 0 ? data : [];
     },
     staleTime: 30000,  // 30 seconds
     cacheTime: 300000, // 5 minutes
   });
 
-  // ✨ React Query: Auto-caching chat messages
-  const {
-    data: chatMessages = [],
-    isLoading: loadingMessages
-  } = useQuery({
-    queryKey: ['messages', selectedComplaint?.id],
-    queryFn: () => complaintApi.getComplaintMessages(selectedComplaint.id),
-    enabled: !!selectedComplaint && showChatModal,
-    staleTime: 300000, // 5 minutes
-  });
-
-  // ✨ React Query: Auto-caching summary
-  const {
-    data: chatSummary = null,
-    isLoading: loadingSummary
-  } = useQuery({
-    queryKey: ['summary', selectedComplaint?.id],
-    queryFn: () => complaintApi.getComplaintSummary(selectedComplaint.id),
-    enabled: !!selectedComplaint && showChatModal,
-    staleTime: 300000, // 5 minutes
-  });
-
-  const loadingChat = loadingMessages || loadingSummary;
-
-  // เปิด modal แสดงแชท (React Query จะดึงข้อมูลอัตโนมัติ)
-  const handleViewChat = (complaint) => {
-    setSelectedComplaint(complaint);
-    setShowChatModal(true);
-    // ✨ React Query จะ fetch messages และ summary อัตโนมัติ
+  // เปิด modal แสดงรายละเอียด
+  const handleViewDetail = (record) => {
+    setSelectedRecord(record);
+    setShowDetailModal(true);
   };
 
   // ปิด modal
   const handleCloseModal = () => {
-    setShowChatModal(false);
-    setSelectedComplaint(null);
+    setShowDetailModal(false);
+    setSelectedRecord(null);
   };
 
   // Filter data
-  const filteredComplaints = complaints.filter(complaint => {
-  const search = searchTerm.toLowerCase();
-  const matchSearch = 
-    (complaint.description?.toLowerCase() || '').includes(search) ||
-    (complaint.category?.toLowerCase() || '').includes(search) ||
-    (complaint.subCategory?.toLowerCase() || '').includes(search);
+  const filteredRecords = serviceHistory.filter(record => {
+    const search = searchTerm.toLowerCase();
+    const matchSearch =
+      (record.description?.toLowerCase() || '').includes(search) ||
+      (record.province?.toLowerCase() || '').includes(search) ||
+      (record.issue_type?.toLowerCase() || '').includes(search) ||
+      (record.record_number?.toLowerCase() || '').includes(search);
 
-  const matchCategory = !filters.category || complaint.category === filters.category;
-  const matchSubCategory = !filters.subCategory || complaint.subCategory === filters.subCategory;
-  const matchStatus = !filters.status || complaint.status === filters.status;
-  const matchGender = !filters.gender || complaint.gender === filters.gender;
+    const matchProvince = !filters.province || record.province === filters.province;
+    const matchIssueType = !filters.issue_type || record.issue_type === filters.issue_type;
+    const matchStatus = !filters.status || record.status === filters.status;
+    const matchGender = !filters.gender || record.gender === filters.gender;
+    const matchYear = !filters.year || record.year === parseInt(filters.year);
 
-  return matchSearch && matchCategory && matchSubCategory && matchStatus && matchGender;
-});
-
+    return matchSearch && matchProvince && matchIssueType && matchStatus && matchGender && matchYear;
+  });
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">ข้อมูลผู้ร้องเรียน</h1>
-        <p className="text-sm text-gray-600">จำนวน XX รายการ</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">ประวัติการดำเนินการ</h1>
+        <p className="text-sm text-gray-600">
+          จำนวน {loading ? '...' : `${filteredRecords.length} รายการ`}
+          {filteredRecords.length !== serviceHistory.length && (
+            <span className="text-gray-400"> (จากทั้งหมด {serviceHistory.length} รายการ)</span>
+          )}
+        </p>
 
-    {/* Search Bar */}
-    <div className="mt-4 flex items-center gap-3">
-        {/* กล่องช่องค้นหา */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="ค้นหา"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-[300px] px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-          />
-          <svg
-            className="w-5 h-5 text-gray-400 absolute right-4 top-1/2 transform -translate-y-1/2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
+        {/* Search Bar */}
+        <div className="mt-4 flex items-center gap-3">
+          {/* กล่องช่องค้นหา */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="ค้นหา (รหัส, รายละเอียด, จังหวัด...)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-[400px] px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+            />
+            <svg
+              className="w-5 h-5 text-gray-400 absolute right-4 top-1/2 transform -translate-y-1/2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-        </div>
+              />
+            </svg>
+          </div>
 
-        {/* ปุ่มเพิ่มข้อมูล */}
-            <button className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium">
-                เพิ่มข้อมูล
-            </button>
+          {/* ปุ่มเพิ่มข้อมูล */}
+          <button className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium">
+            เพิ่มข้อมูล
+          </button>
         </div>
-    </div>
+      </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -135,6 +117,7 @@ const AdminComplaints = () => {
               <thead className="bg-orange-500 text-white">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold">ลำดับ</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">รหัสอ้างอิง</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">
                     <div className="flex items-center gap-1">
                       วันที่
@@ -159,16 +142,16 @@ const AdminComplaints = () => {
                   <th className="px-4 py-3 text-left text-sm font-semibold">ประโยชน์ที่ได้รับ</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">อาชีพ</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">สถานะของผู้ได้รับประโยชน์</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">กรณีเป็นตัวแทนระบุชื่อชุมชน/หน่วยงาน</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">กรณีเป็นตัวแทนระบุจำนวนผู้ที่ได้รับ</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">ชื่อชุมชน/หน่วยงาน</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">จำนวนผู้ได้รับประโยชน์</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">ปี</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold"></th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredComplaints.length === 0 ? (
+                {filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan="14" className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan="16" className="px-4 py-12 text-center text-gray-500">
                       <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
@@ -176,28 +159,43 @@ const AdminComplaints = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredComplaints.map((complaint, index) => (
-                    <tr key={complaint.id} className="hover:bg-gray-50 transition-colors">
+                  filteredRecords.map((record, index) => (
+                    <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-sm">{index + 1}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.date}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.category}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.subCategory}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.description}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.status}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.gender}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.age}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.utility}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.occupation}</td>
-                      <td className="px-4 py-3 text-sm">{complaint.type}</td>
-                      <td className="px-4 py-3 text-sm text-center">{complaint.count1}</td>
-                      <td className="px-4 py-3 text-sm text-center">{complaint.count2}</td>
-                      <td className="px-4 py-3 text-sm text-center">{complaint.year}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                          {record.record_number}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {record.date ? new Date(record.date).toLocaleDateString('th-TH', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        }) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm">{record.province || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{record.month_name || '-'}</td>
+                      <td className="px-4 py-3 text-sm max-w-xs truncate" title={record.description}>
+                        {record.description || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm">{record.issue_type || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{record.gender || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-center">{record.age || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{record.benefit_received || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{record.occupation || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{record.beneficiary_status || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{record.organization_name || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        {record.is_representative ? record.beneficiary_count || 1 : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center">{record.year || '-'}</td>
                       <td className="px-4 py-3 text-sm text-center">
                         <button
-                          onClick={() => handleViewChat(complaint)}
+                          onClick={() => handleViewDetail(record)}
                           className="text-orange-600 hover:text-orange-700 font-medium transition-colors"
                         >
-                          แชท
+                          ดูรายละเอียด
                         </button>
                       </td>
                     </tr>
@@ -209,19 +207,17 @@ const AdminComplaints = () => {
         )}
       </div>
 
-      {/* Chat Modal */}
-      {showChatModal && (
+      {/* Detail Modal */}
+      {showDetailModal && selectedRecord && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="bg-orange-500 text-white px-6 py-4 flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-bold">รายละเอียดเรื่องร้องเรียน</h2>
-                {selectedComplaint && (
-                  <p className="text-sm opacity-90 mt-1">
-                    {selectedComplaint.description}
-                  </p>
-                )}
+                <h2 className="text-xl font-bold">รายละเอียดประวัติการดำเนินการ</h2>
+                <p className="text-sm opacity-90 mt-1 font-mono">
+                  {selectedRecord.record_number}
+                </p>
               </div>
               <button
                 onClick={handleCloseModal}
@@ -235,110 +231,114 @@ const AdminComplaints = () => {
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-6">
-              {loadingChat ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* Summary Section */}
-                  {chatSummary && (
-                    <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-6 border border-orange-200">
-                      <div className="flex items-start gap-3 mb-4">
-                        <div className="bg-orange-500 text-white rounded-full p-2">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-bold text-gray-900 mb-2">สรุปเรื่องร้องเรียน</h3>
-                          <p className="text-gray-700 leading-relaxed">{chatSummary.summary}</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-orange-200">
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">ประเภท</p>
-                          <p className="font-semibold text-gray-900">{chatSummary.category}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">มูลค่าความเสียหาย</p>
-                          <p className="font-semibold text-red-600">{chatSummary.amount}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">คำสำคัญ</p>
-                          <div className="flex flex-wrap gap-1">
-                            {chatSummary.keywords?.map((keyword, idx) => (
-                              <span key={idx} className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs">
-                                {keyword}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+              <div className="space-y-6">
+                {/* Basic Info */}
+                <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-6 border border-orange-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">ข้อมูลพื้นฐาน</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">รหัสอ้างอิง</p>
+                      <p className="font-mono font-semibold text-gray-900">{selectedRecord.record_number}</p>
                     </div>
-                  )}
-
-                  {/* Chat Messages Section */}
-                  <div className="bg-white rounded-lg p-6 border border-gray-200">
-                    <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200">
-                      <div className="bg-blue-500 text-white rounded-full p-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900">ข้อความสนทนา</h3>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">วันที่</p>
+                      <p className="font-semibold text-gray-900">
+                        {selectedRecord.date ? new Date(selectedRecord.date).toLocaleDateString('th-TH', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        }) : '-'}
+                      </p>
                     </div>
-
-                    <div className="space-y-4">
-                      {chatMessages.length === 0 ? (
-                        <div className="text-center py-12">
-                          <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                          <p className="text-gray-500">ไม่มีข้อความสนทนา</p>
-                        </div>
-                      ) : (
-                        chatMessages.map((msg, index) => (
-                          <div
-                            key={msg.id}
-                            className={`border-l-4 pl-4 py-3 ${
-                              msg.type === 'admin'
-                                ? 'border-blue-400 bg-blue-50'
-                                : 'border-orange-400 bg-orange-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  msg.type === 'admin'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-orange-100 text-orange-800'
-                                }`}>
-                                  {msg.sender}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {new Date(msg.timestamp).toLocaleString('th-TH', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                              </div>
-                              <span className="text-xs text-gray-400">#{index + 1}</span>
-                            </div>
-                            <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
-                              {msg.message}
-                            </p>
-                          </div>
-                        ))
-                      )}
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">จังหวัด</p>
+                      <p className="font-semibold text-gray-900">{selectedRecord.province || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">ประเภทประเด็น</p>
+                      <p className="font-semibold text-gray-900">{selectedRecord.issue_type || '-'}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-600 mb-1">รายละเอียด</p>
+                      <p className="text-gray-900">{selectedRecord.description}</p>
                     </div>
                   </div>
                 </div>
-              )}
+
+                {/* Personal Info */}
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">ข้อมูลผู้รับบริการ</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">เพศ</p>
+                      <p className="font-semibold text-gray-900">{selectedRecord.gender || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">อายุ</p>
+                      <p className="font-semibold text-gray-900">{selectedRecord.age || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">อาชีพ</p>
+                      <p className="font-semibold text-gray-900">{selectedRecord.occupation || '-'}</p>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-xs text-gray-600 mb-1">ความเสียหายทางการเงิน</p>
+                      <p className="font-semibold text-red-600">
+                        {selectedRecord.financial_damage
+                          ? `${parseFloat(selectedRecord.financial_damage).toLocaleString('th-TH')} บาท`
+                          : '-'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Benefits */}
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">ประโยชน์และผลลัพธ์</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">ประโยชน์ที่ได้รับ</p>
+                      <p className="font-semibold text-gray-900">{selectedRecord.benefit_received || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">สถานะของผู้ได้รับประโยชน์</p>
+                      <p className="font-semibold text-gray-900">{selectedRecord.beneficiary_status || '-'}</p>
+                    </div>
+                    {selectedRecord.is_representative && (
+                      <>
+                        <div>
+                          <p className="text-xs text-gray-600 mb-1">ชื่อชุมชน/หน่วยงาน</p>
+                          <p className="font-semibold text-gray-900">{selectedRecord.organization_name || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600 mb-1">จำนวนผู้ได้รับประโยชน์</p>
+                          <p className="font-semibold text-gray-900">{selectedRecord.beneficiary_count || 1} คน</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Meta Info */}
+                <div className="bg-gray-50 rounded-lg p-4 text-xs text-gray-600">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="font-semibold">บันทึกโดย:</span> {selectedRecord.recorded_by || '-'}
+                    </div>
+                    <div>
+                      <span className="font-semibold">สถานะ:</span> {selectedRecord.status || '-'}
+                    </div>
+                    <div>
+                      <span className="font-semibold">สร้างเมื่อ:</span>{' '}
+                      {selectedRecord.created_at ? new Date(selectedRecord.created_at).toLocaleString('th-TH') : '-'}
+                    </div>
+                    <div>
+                      <span className="font-semibold">แก้ไขล่าสุด:</span>{' '}
+                      {selectedRecord.updated_at ? new Date(selectedRecord.updated_at).toLocaleString('th-TH') : '-'}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Modal Footer */}
@@ -350,7 +350,7 @@ const AdminComplaints = () => {
                 ปิด
               </button>
               <button className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium">
-                ส่งออกข้อมูล
+                แก้ไข
               </button>
             </div>
           </div>

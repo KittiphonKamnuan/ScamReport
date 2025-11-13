@@ -231,6 +231,12 @@ exports.handler = async (event) => {
             return await deleteServiceHistory(conn, recordId, origin);
         }
 
+        // GET /table/service-history/record/:recordNumber
+        if (httpMethod === 'GET' && /^\/table\/service-history\/record\/[^/]+$/.test(path)) {
+            const recordNumber = path.split('/')[4];
+            return await getServiceHistoryByRecordNumber(conn, recordNumber, origin);
+        }
+
         // Generic Table Access
         if (httpMethod === 'GET' && path.startsWith('/table/')) {
             const parts = path.split('/').filter(p => p);
@@ -537,6 +543,7 @@ async function createServiceHistory(conn, body, origin) {
             }, origin);
         }
 
+        // Note: record_number จะถูก auto-generate โดย trigger
         const query = `
             INSERT INTO service_history (
                 date, province, month_name, description, issue_type,
@@ -572,11 +579,15 @@ async function createServiceHistory(conn, body, origin) {
 
         // ========== CACHE INVALIDATION ==========
         cache.clear('stats_service_history');
-        console.log('🗑️  Cleared cache: stats_service_history*');
+        cache.clear('table_service_history');
+        console.log('🗑️  Cleared cache: stats_service_history* & table_service_history*');
+
+        console.log(`✅ Created service history: ${result.rows[0].record_number}`);
 
         return response(201, {
             data: result.rows[0],
-            message: 'Service history record created successfully'
+            message: 'Service history record created successfully',
+            record_number: result.rows[0].record_number
         }, origin);
     } catch (error) {
         console.error('Error creating service history:', error);
@@ -699,6 +710,55 @@ async function deleteServiceHistory(conn, recordId, origin) {
         console.error(`Error deleting service history ${recordId}:`, error);
         return response(500, {
             error: 'Failed to delete service history record',
+            message: error.message
+        }, origin);
+    }
+}
+
+// GET /table/service-history/record/:recordNumber
+async function getServiceHistoryByRecordNumber(conn, recordNumber, origin) {
+    try {
+        // Validate record number format (HIS-YYYYMM-XXXX)
+        if (!recordNumber || !recordNumber.startsWith('HIS-')) {
+            return response(400, {
+                error: 'Invalid record number format',
+                expected: 'HIS-YYYYMM-XXXX'
+            }, origin);
+        }
+
+        // ========== CACHE CHECK ==========
+        const cacheKey = `service_history_record_${recordNumber}`;
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            console.log(`✅ Cache HIT: ${cacheKey}`);
+            return response(200, cached, origin);
+        }
+        console.log(`❌ Cache MISS: ${cacheKey}`);
+
+        const query = 'SELECT * FROM service_history WHERE record_number = $1';
+        const result = await conn.query(query, [recordNumber]);
+
+        if (result.rows.length === 0) {
+            return response(404, {
+                error: 'Record not found',
+                record_number: recordNumber
+            }, origin);
+        }
+
+        const data = {
+            data: result.rows[0]
+        };
+
+        // ========== CACHE SAVE ==========
+        cache.set(cacheKey, data, CACHE_TTL.complaint_detail);
+        console.log(`💾 Cached: ${cacheKey} (TTL: ${CACHE_TTL.complaint_detail}ms)`);
+
+        return response(200, data, origin);
+
+    } catch (error) {
+        console.error(`Error fetching service history by record number ${recordNumber}:`, error);
+        return response(500, {
+            error: 'Failed to fetch service history record',
             message: error.message
         }, origin);
     }
