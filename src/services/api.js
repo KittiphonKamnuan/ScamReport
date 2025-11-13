@@ -1,10 +1,13 @@
 import axios from 'axios';
 
-const ADMIN_API_URL = import.meta.env.VITE_ADMIN_API_URL;
+// ใช้ Lambda URL จาก environment variable
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+console.log('API_BASE_URL (api.js):', API_BASE_URL, 'Mode:', import.meta.env.MODE);
 
 // สร้าง axios instance พร้อม config
 const apiClient = axios.create({
-  baseURL: ADMIN_API_URL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   }
