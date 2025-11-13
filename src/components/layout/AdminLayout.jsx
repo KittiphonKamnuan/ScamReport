@@ -56,17 +56,17 @@ const AdminLayout = () => {
           </Link>
 
           <Link
-            to="/admin/history"
+            to="/admin/messages"
             className={`flex items-center px-6 py-3 text-sm transition-colors ${
-              isActive('/admin/history')
+              isActive('/admin/messages')
                 ? 'bg-gray-700 text-white border-l-4 border-orange-500'
                 : 'text-gray-300 hover:bg-gray-700 hover:text-white'
             }`}
           >
             <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
-            ข้อความ
+            ข้อความทั้งหมด
           </Link>
         </nav>
 
@@ -103,7 +103,7 @@ const AdminLayout = () => {
             <h2 className="text-lg font-semibold">
               {location.pathname === '/admin/dashboard' && 'Dashboard'}
               {location.pathname === '/admin/complaints' && 'ข้อมูลผู้ร้องเรียน'}
-              {location.pathname === '/admin/history' && 'ประวัติข้อความ'}
+              {location.pathname === '/admin/messages' && 'ข้อความทั้งหมด'}
               {location.pathname === '/admin/settings' && 'ตั้งค่า'}
             </h2>
           </div>

@@ -5,7 +5,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import Login from './components/auth/Login';
 import AdminLayout from './components/layout/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminHistory from './pages/admin/AdminHistory';
+import AdminMessages from './pages/admin/AdminMessages';
 import AdminComplaints from './pages/admin/AdminComplaints';
 import ComplaintDetail from './pages/admin/ComplaintDetail';
 
@@ -25,9 +25,9 @@ function App() {
             </ProtectedRoute>
           }>
             <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="messages" element={<AdminMessages />} />
             <Route path="complaints" element={<AdminComplaints />} />
             <Route path="complaints/:id" element={<ComplaintDetail />} />
-            <Route path="history" element={<AdminHistory />} />
             <Route path="settings" element={<div className="p-6">Settings Page</div>} />
           </Route>
 

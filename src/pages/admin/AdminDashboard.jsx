@@ -1,74 +1,71 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
 import { useLambdaApi } from '../../hooks/useLambdaApi';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const { getDashboardStats, getChartData, getNewScamTypes, loading } = useLambdaApi();
-  
-  // ข้อมูลจริงจาก API
-  const [stats, setStats] = useState({
-    totalCases: 0,
-    totalAmount: 0,
-    victimCount: 0
-  });
-  
+  const { getDashboardStats, getChartData, getNewScamTypes } = useLambdaApi();
+
   const [chartFilter, setChartFilter] = useState('month');
-  const [chartData, setChartData] = useState([]);
-  const [newScamTypes, setNewScamTypes] = useState([]);
-  
 
-  // ดึงข้อมูลสถิติจาก Lambda
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const result = await getDashboardStats();
-        console.log('✅ Dashboard Stats:', result);
-        
-        setStats({
-          totalCases: result.totalCases || 0,
-          totalAmount: result.totalAmount || 0,
-          victimCount: result.victimCount || 0
-        });
-      } catch (error) {
-        console.error('❌ Error fetching stats:', error);
-      }
-    };
-    
-    fetchStats();
-  }, []);
+  // ✅ Cache: Dashboard Stats (5 minutes)
+  const {
+    data: stats = {
+      totalCases: 0,
+      totalAmount: 0,
+      victimCount: 0
+    },
+    isLoading: statsLoading,
+    error: statsError
+  } = useQuery({
+    queryKey: ['dashboardStats'],
+    queryFn: async () => {
+      const result = await getDashboardStats();
+      console.log('✅ Dashboard Stats:', result);
+      return {
+        totalCases: result.totalCases || 0,
+        totalAmount: result.totalAmount || 0,
+        victimCount: result.victimCount || 0
+      };
+    },
+    staleTime: 300000,  // 5 minutes
+    cacheTime: 600000,  // 10 minutes
+  });
 
-  // ดึงข้อมูล Chart จาก Lambda
-  useEffect(() => {
-    const fetchChartData = async () => {
-      try {
-        const result = await getChartData(chartFilter);
-        console.log('✅ Chart Data:', result);
-        
-        setChartData(result.chartData || []);
-      } catch (error) {
-        console.error('❌ Error fetching chart data:', error);
-      }
-    };
-    
-    fetchChartData();
-  }, [chartFilter]);
+  // ✅ Cache: Chart Data (5 minutes, per filter)
+  const {
+    data: chartData = [],
+    isLoading: chartLoading,
+    error: chartError
+  } = useQuery({
+    queryKey: ['chartData', chartFilter],
+    queryFn: async () => {
+      const result = await getChartData(chartFilter);
+      console.log('✅ Chart Data:', result);
+      return result.chartData || [];
+    },
+    staleTime: 300000,  // 5 minutes
+    cacheTime: 600000,  // 10 minutes
+  });
 
-  // ดึงกลโกงรูปแบบใหม่จาก Lambda
-  useEffect(() => {
-    const fetchNewScams = async () => {
-      try {
-        const result = await getNewScamTypes(4);
-        console.log('✅ New Scam Types:', result);
-        
-        setNewScamTypes(result.scamTypes || []);
-      } catch (error) {
-        console.error('❌ Error fetching new scam types:', error);
-      }
-    };
-    
-    fetchNewScams();
-  }, []);
+  // ✅ Cache: New Scam Types (10 minutes)
+  const {
+    data: newScamTypes = [],
+    isLoading: scamsLoading,
+    error: scamsError
+  } = useQuery({
+    queryKey: ['newScamTypes'],
+    queryFn: async () => {
+      const result = await getNewScamTypes(4);
+      console.log('✅ New Scam Types:', result);
+      return result.scamTypes || [];
+    },
+    staleTime: 600000,   // 10 minutes
+    cacheTime: 900000,   // 15 minutes
+  });
+
+  const loading = statsLoading || chartLoading || scamsLoading;
 
 
   // แปลง chartData เป็นตัวเลขชัวร์ ๆ
@@ -98,7 +95,7 @@ const AdminDashboard = () => {
         {/* Card 2 - ยอดที่เสียหายมากที่สุด */}
         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
           <div className="relative z-10">
-            <h3 className="text-lg font-semibold mb-2">ยอดที่เสียหายมากที่สุด</h3>
+            <h3 className="text-lg font-semibold mb-2">ยอดที่เสียหายรวมทั้งหมด</h3>
             <p className="text-4xl font-bold">{stats.totalAmount.toLocaleString()}</p>
           </div>
           {/* Icon decoration */}
