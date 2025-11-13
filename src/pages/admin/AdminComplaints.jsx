@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceHistoryService } from '../../services/serviceHistoryService';
 
 const AdminComplaints = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     province: '',
@@ -13,6 +14,26 @@ const AdminComplaints = () => {
   });
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({
+    date: '',
+    province: '',
+    month_name: '',
+    description: '',
+    issue_type: '',
+    gender: '',
+    age: '',
+    benefit_received: '',
+    occupation: '',
+    beneficiary_status: '',
+    organization_name: '',
+    beneficiary_count: '',
+    year: new Date().getFullYear(),
+    financial_damage: '',
+    status: 'รับเรื่อง',
+    recorded_by: '',
+    is_representative: false
+  });
 
   // ✨ React Query: Auto-caching service history list
   const {
@@ -30,16 +51,90 @@ const AdminComplaints = () => {
     cacheTime: 300000, // 5 minutes
   });
 
+  // ✨ React Query Mutation: Create service history
+  const createMutation = useMutation({
+    mutationFn: (data) => serviceHistoryService.createServiceHistory(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['service-history']);
+      handleCloseAddModal();
+      alert('✅ เพิ่มข้อมูลสำเร็จ');
+    },
+    onError: (error) => {
+      console.error('Error creating service history:', error);
+      alert('❌ เกิดข้อผิดพลาดในการเพิ่มข้อมูล');
+    }
+  });
+
   // เปิด modal แสดงรายละเอียด
   const handleViewDetail = (record) => {
     setSelectedRecord(record);
     setShowDetailModal(true);
   };
 
-  // ปิด modal
+  // ปิด modal รายละเอียด
   const handleCloseModal = () => {
     setShowDetailModal(false);
     setSelectedRecord(null);
+  };
+
+  // เปิด modal เพิ่มข้อมูล
+  const handleOpenAddModal = () => {
+    setShowAddModal(true);
+  };
+
+  // ปิด modal เพิ่มข้อมูล
+  const handleCloseAddModal = () => {
+    setShowAddModal(false);
+    setFormData({
+      date: '',
+      province: '',
+      month_name: '',
+      description: '',
+      issue_type: '',
+      gender: '',
+      age: '',
+      benefit_received: '',
+      occupation: '',
+      beneficiary_status: '',
+      organization_name: '',
+      beneficiary_count: '',
+      year: new Date().getFullYear(),
+      financial_damage: '',
+      status: 'รับเรื่อง',
+      recorded_by: '',
+      is_representative: false
+    });
+  };
+
+  // Handle form input change
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  // Handle form submit
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // Validate required fields
+    if (!formData.date || !formData.description) {
+      alert('⚠️ กรุณากรอกวันที่และรายละเอียดประเด็น');
+      return;
+    }
+
+    // Prepare data
+    const submitData = {
+      ...formData,
+      age: formData.age ? parseInt(formData.age) : null,
+      beneficiary_count: formData.beneficiary_count ? parseInt(formData.beneficiary_count) : null,
+      financial_damage: formData.financial_damage ? parseFloat(formData.financial_damage) : null,
+      year: parseInt(formData.year)
+    };
+
+    createMutation.mutate(submitData);
   };
 
   // Filter data
@@ -99,7 +194,10 @@ const AdminComplaints = () => {
           </div>
 
           {/* ปุ่มเพิ่มข้อมูล */}
-          <button className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium">
+          <button
+            onClick={handleOpenAddModal}
+            className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+          >
             เพิ่มข้อมูล
           </button>
         </div>
@@ -351,6 +449,300 @@ const AdminComplaints = () => {
               </button>
               <button className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium">
                 แก้ไข
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-orange-500 text-white px-6 py-4 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold">เพิ่มข้อมูลประวัติการดำเนินการ</h2>
+                <p className="text-sm opacity-90 mt-1">กรุณากรอกข้อมูลให้ครบถ้วน</p>
+              </div>
+              <button
+                onClick={handleCloseAddModal}
+                className="text-white hover:bg-orange-600 rounded-full p-2 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* ข้อมูลพื้นฐาน */}
+                <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-6 border border-orange-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">ข้อมูลพื้นฐาน</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        วันที่ <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        name="date"
+                        value={formData.date}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">จังหวัด</label>
+                      <input
+                        type="text"
+                        name="province"
+                        value={formData.province}
+                        onChange={handleInputChange}
+                        placeholder="เช่น กระบี่, กรุงเทพมหานคร"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">เดือน</label>
+                      <input
+                        type="text"
+                        name="month_name"
+                        value={formData.month_name}
+                        onChange={handleInputChange}
+                        placeholder="เช่น มกราคม, กุมภาพันธ์"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">ปี</label>
+                      <input
+                        type="number"
+                        name="year"
+                        value={formData.year}
+                        onChange={handleInputChange}
+                        min="2000"
+                        max="2100"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">ประเภทประเด็น</label>
+                      <select
+                        name="issue_type"
+                        value={formData.issue_type}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      >
+                        <option value="">-- เลือกประเภท --</option>
+                        <option value="การฉ้อโกง">การฉ้อโกง</option>
+                        <option value="การหลอกลวง">การหลอกลวง</option>
+                        <option value="การคุกคาม">การคุกคาม</option>
+                        <option value="อื่นๆ">อื่นๆ</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">สถานะ</label>
+                      <select
+                        name="status"
+                        value={formData.status}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      >
+                        <option value="รับเรื่อง">รับเรื่อง</option>
+                        <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+                        <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+                        <option value="ระงับ">ระงับ</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        รายละเอียดประเด็น <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        required
+                        rows="3"
+                        placeholder="อธิบายรายละเอียดประเด็นที่เกิดขึ้น..."
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ข้อมูลผู้รับบริการ */}
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">ข้อมูลผู้รับบริการ</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">เพศ</label>
+                      <select
+                        name="gender"
+                        value={formData.gender}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      >
+                        <option value="">-- เลือกเพศ --</option>
+                        <option value="ชาย">ชาย</option>
+                        <option value="หญิง">หญิง</option>
+                        <option value="อื่นๆ">อื่นๆ</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">อายุ</label>
+                      <input
+                        type="number"
+                        name="age"
+                        value={formData.age}
+                        onChange={handleInputChange}
+                        min="0"
+                        max="150"
+                        placeholder="ระบุอายุ"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">อาชีพ</label>
+                      <input
+                        type="text"
+                        name="occupation"
+                        value={formData.occupation}
+                        onChange={handleInputChange}
+                        placeholder="เช่น เกษตรกร, พนักงานบริษัท"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">ความเสียหายทางการเงิน (บาท)</label>
+                      <input
+                        type="number"
+                        name="financial_damage"
+                        value={formData.financial_damage}
+                        onChange={handleInputChange}
+                        min="0"
+                        step="0.01"
+                        placeholder="จำนวนเงินที่เสียหาย"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ประโยชน์และผลลัพธ์ */}
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">ประโยชน์และผลลัพธ์</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">ประโยชน์ที่ได้รับ</label>
+                      <input
+                        type="text"
+                        name="benefit_received"
+                        value={formData.benefit_received}
+                        onChange={handleInputChange}
+                        placeholder="ระบุประโยชน์ที่ได้รับ"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">สถานะของผู้ได้รับประโยชน์</label>
+                      <input
+                        type="text"
+                        name="beneficiary_status"
+                        value={formData.beneficiary_status}
+                        onChange={handleInputChange}
+                        placeholder="เช่น เจ้าของกิจการ, พนักงาน"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="is_representative"
+                          checked={formData.is_representative}
+                          onChange={handleInputChange}
+                          className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                        />
+                        <span className="text-sm font-semibold text-gray-700">เป็นตัวแทนของกลุ่ม/องค์กร</span>
+                      </label>
+                    </div>
+                    {formData.is_representative && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">ชื่อชุมชน/หน่วยงาน</label>
+                          <input
+                            type="text"
+                            name="organization_name"
+                            value={formData.organization_name}
+                            onChange={handleInputChange}
+                            placeholder="ชื่อชุมชนหรือหน่วยงาน"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">จำนวนผู้ได้รับประโยชน์</label>
+                          <input
+                            type="number"
+                            name="beneficiary_count"
+                            value={formData.beneficiary_count}
+                            onChange={handleInputChange}
+                            min="1"
+                            placeholder="จำนวนคน"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* ข้อมูลเพิ่มเติม */}
+                <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">ข้อมูลเพิ่มเติม</h3>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">บันทึกโดย</label>
+                    <input
+                      type="text"
+                      name="recorded_by"
+                      value={formData.recorded_by}
+                      onChange={handleInputChange}
+                      placeholder="ชื่อผู้บันทึกข้อมูล"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={handleCloseAddModal}
+                disabled={createMutation.isLoading}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                onClick={handleSubmit}
+                disabled={createMutation.isLoading}
+                className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+              >
+                {createMutation.isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    กำลังบันทึก...
+                  </>
+                ) : (
+                  'บันทึกข้อมูล'
+                )}
               </button>
             </div>
           </div>
