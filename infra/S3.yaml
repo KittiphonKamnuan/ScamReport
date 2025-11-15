@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "ScamerReport static website S3 bucket"
+
+Resources:
+  ScamerBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      # ถ้าต้องการให้ CloudFormation สร้างชื่ออัตโนมัติ ให้คอมเมนต์หรือลบ BucketName บรรทัดด้านล่าง
+      BucketName: !Sub "scamerreport-frontend-${AWS::AccountId}-${AWS::Region}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+
+Outputs:
+  WebsiteURL:
+    Description: "Static website URL"
+    Value: !Sub "http://${ScamerBucket}.s3-website-${AWS::Region}.amazonaws.com"
+  BucketName:
+    Description: "Bucket name"
+    Value: !Ref ScamerBucket
