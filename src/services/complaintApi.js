@@ -7,6 +7,9 @@ const API_BASE_URL = import.meta.env.DEV
   ? '' // Development: ใช้ relative URL (Vite proxy จะจัดการ CORS)
   : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_ADMIN_API_URL);
 
+// URL นี้สำหรับเรียก AI Summarizer Lambda โดยเฉพาะ
+const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'https://3zmjr6upnpnzzp3xbtivs2mjlm0hrodo.lambda-url.us-east-1.on.aws/';
+
 console.log('API_BASE_URL:', API_BASE_URL, 'Mode:', import.meta.env.MODE);
 
 // สร้าง axios instance
@@ -106,11 +109,20 @@ export const complaintApi = {
   // สร้าง summary ใหม่สำหรับแชท
   createComplaintSummary: async (complaintId) => {
     try {
-      const response = await apiClient.post(`/table/complaints/${complaintId}/summary`);
-      const data = parseLambdaResponse(response.data);
-      return data.summary || data.data || data;
+      // เราจะยิงไปที่ Lambda ใหม่โดยตรง ไม่ผ่าน apiClient
+      // เพราะ Lambda (ai-summarizer-api) เรารับ ID ใน path
+      const url = `${AI_API_URL}${complaintId}`; 
+      console.log('Calling NEW AI Lambda:', url);
+
+      // ใช้ axios.post() (Lambda Function URL รับ POST)
+      const response = await axios.post(url); 
+      
+      // Lambda Function URL (Auth: NONE) จะ return JSON กลับมาตรงๆ
+      // "ไม่ต้อง" ใช้ parseLambdaResponse
+      return response.data; 
+
     } catch (error) {
-      console.error(`Error creating summary for complaint ${complaintId}:`, error);
+      console.error(`Error creating AI summary for complaint ${complaintId}:`, error);
       throw error;
     }
   },
