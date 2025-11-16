@@ -409,14 +409,14 @@ const handleSummarizeClick = async () => {
                       </p>
                     </div>
 
-                    {summary.key_points &&
-                      summary.key_points.length > 0 && (
+                    {summary.summary.key_points &&
+                      summary.summary.key_points.length > 0 && (
                         <div>
                           <h3 className="text-sm font-medium text-gray-700 mb-2">
                             จุดสำคัญ
                           </h3>
                           <ul className="list-disc list-inside space-y-1">
-                            {summary.key_points.map((point, idx) => (
+                            {summary.summary.key_points.map((point, idx) => (
                               <li key={idx} className="text-gray-700">
                                 {point}
                               </li>
@@ -425,14 +425,14 @@ const handleSummarizeClick = async () => {
                         </div>
                       )}
 
-                    {summary.timeline &&
-                      summary.timeline.length > 0 && (
+                    {summary.summary.timeline &&
+                      summary.summary.timeline.length > 0 && (
                         <div>
                           <h3 className="text-sm font-medium text-gray-700 mb-2">
                             ไทม์ไลน์
                           </h3>
                           <div className="space-y-2">
-                            {summary.timeline.map((event, idx) => (
+                            {summary.summary.timeline.map((event, idx) => (
                               <div
                                 key={idx}
                                 className="flex items-start space-x-2"
@@ -447,7 +447,7 @@ const handleSummarizeClick = async () => {
                         </div>
                       )}
 
-                    {summary.category && (
+                    {summary.summary.category && (
                       <div>
                         <h3 className="text-sm font-medium text-gray-700 mb-2">
                           ประเภทการหลอกลวง

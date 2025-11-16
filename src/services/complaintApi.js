@@ -138,7 +138,8 @@ export const complaintApi = {
         `/table/complaints/${complaintId}/summary`
       );
       const data = parseLambdaResponse(response.data);
-      return data.summary || data.data || data;
+      // Return ทั้ง object เพื่อให้ได้ข้อมูลครบทั้ง summary และ contact info
+      return data;
     } catch (error) {
       console.error(`Error fetching summary for complaint ${complaintId}:`, error);
       throw error;
