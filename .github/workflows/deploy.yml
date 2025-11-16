@@ -1,8 +1,9 @@
-name: Deploy Frontend
+name: Deploy Frontend to S3
 
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:  # ⭐ เพิ่มเพื่อให้ trigger manual ได้
 
 jobs:
   build-and-deploy:
@@ -24,8 +25,16 @@ jobs:
       - name: Build Vite app
         run: npm run build
         env:
-          # เพิ่ม environment variables ถ้ามี
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # ⭐ AWS Cognito Configuration
+          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
+          VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID }}
+          VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID }}
+          
+          # ⭐ API Configuration
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          
+          # ⭐ Optional: AI API
+          VITE_AI_API_URL: ${{ secrets.VITE_AI_API_URL }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -35,19 +44,33 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
-      - name: Sync to S3
+      - name: Deploy to S3
         run: |
+          echo "📤 Uploading files to S3..."
+          
+          # Sync all files except index.html with long cache
           aws s3 sync ./dist s3://scamerreport-frontend-410812557104-us-east-1 \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "index.html"
           
+          # Upload index.html with no cache (for React Router)
           aws s3 cp ./dist/index.html \
             s3://scamerreport-frontend-410812557104-us-east-1/index.html \
             --cache-control "public, max-age=0, must-revalidate" \
             --content-type "text/html"
+          
+          echo "✅ Files uploaded successfully!"
 
-      - name: Deployment Success
+      - name: Deployment Summary
         run: |
-          echo "✅ Deployment completed successfully!"
-          echo "🌐 Website URL: http://scamerreport-frontend-410812557104-us-east-1.s3-website-us-east-1.amazonaws.com"
+          echo "╔════════════════════════════════════════════════════╗"
+          echo "║        🎉 Deployment Successful!                  ║"
+          echo "╠════════════════════════════════════════════════════╣"
+          echo "║ 🌐 Website URL:                                   ║"
+          echo "║    http://scamerreport-frontend-410812557104-us-east-1.s3-website-us-east-1.amazonaws.com"
+          echo "║                                                    ║"
+          echo "║ 📦 Bucket: scamerreport-frontend-410812557104-us-east-1"
+          echo "║ 🕐 Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')      ║"
+          echo "║ 📝 Commit: ${{ github.sha }}                      ║"
+          echo "╚════════════════════════════════════════════════════╝"
