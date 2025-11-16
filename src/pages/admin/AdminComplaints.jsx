@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceHistoryService } from '../../services/serviceHistoryService';
+import * as XLSX from 'xlsx';
 
 const AdminComplaints = () => {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     province: '',
@@ -15,6 +17,10 @@ const AdminComplaints = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
   const [formData, setFormData] = useState({
     date: '',
     province: '',
@@ -137,6 +143,193 @@ const AdminComplaints = () => {
     createMutation.mutate(submitData);
   };
 
+  // Handle Excel upload button click
+  const handleExcelUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Download Excel template
+  const handleDownloadTemplate = () => {
+    // Create template data
+    const templateData = [
+      {
+        'วันที่': '2024-01-15',
+        'จังหวัด': 'กรุงเทพมหานคร',
+        'เดือน': 'มกราคม',
+        'รายละเอียด': 'ตัวอย่างรายละเอียดประเด็น',
+        'ประเภทประเด็น': 'การฉ้อโกง',
+        'เพศ': 'ชาย',
+        'อายุ': 35,
+        'ประโยชน์ที่ได้รับ': 'รับคำปรึกษา',
+        'อาชีพ': 'พนักงานบริษัท',
+        'สถานะผู้รับประโยชน์': 'เจ้าของกิจการ',
+        'ชื่อองค์กร': '',
+        'จำนวนผู้รับประโยชน์': '',
+        'ปี': 2024,
+        'ความเสียหาย': 50000,
+        'สถานะ': 'รับเรื่อง',
+        'บันทึกโดย': 'Admin',
+        'เป็นตัวแทน': 'ไม่'
+      }
+    ];
+
+    // Create workbook
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+
+    // Set column widths
+    const colWidths = [
+      { wch: 12 }, // วันที่
+      { wch: 20 }, // จังหวัด
+      { wch: 12 }, // เดือน
+      { wch: 40 }, // รายละเอียด
+      { wch: 18 }, // ประเภทประเด็น
+      { wch: 10 }, // เพศ
+      { wch: 8 },  // อายุ
+      { wch: 20 }, // ประโยชน์ที่ได้รับ
+      { wch: 18 }, // อาชีพ
+      { wch: 22 }, // สถานะผู้รับประโยชน์
+      { wch: 25 }, // ชื่อองค์กร
+      { wch: 18 }, // จำนวนผู้รับประโยชน์
+      { wch: 8 },  // ปี
+      { wch: 15 }, // ความเสียหาย
+      { wch: 15 }, // สถานะ
+      { wch: 15 }, // บันทึกโดย
+      { wch: 12 }  // เป็นตัวแทน
+    ];
+    ws['!cols'] = colWidths;
+
+    // Download file
+    XLSX.writeFile(wb, 'Service_History_Template.xlsx');
+  };
+
+  // Handle Excel file upload
+  const handleExcelFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    const validTypes = [
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    if (!validTypes.includes(file.type) && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      alert('⚠️ กรุณาเลือกไฟล์ Excel (.xlsx หรือ .xls)');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress({ current: 0, total: 0 });
+
+    try {
+      // Read file
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+
+      // Get first sheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Convert to JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      console.log('📊 Excel data parsed:', jsonData);
+
+      if (jsonData.length === 0) {
+        alert('⚠️ ไม่พบข้อมูลในไฟล์ Excel');
+        setIsUploading(false);
+        return;
+      }
+
+      // Validate and transform data
+      const records = jsonData.map((row, index) => {
+        // Map Excel columns to database fields
+        // Support both Thai and English column names
+
+        // Convert Excel date serial number to date string
+        let dateValue = row['วันที่ให้บริการ'] || row['วันที่'] || row['date'];
+        if (typeof dateValue === 'number') {
+          // Excel date serial to JS date
+          const excelEpoch = new Date(1899, 11, 30);
+          const jsDate = new Date(excelEpoch.getTime() + dateValue * 86400000);
+          dateValue = jsDate.toISOString().split('T')[0];
+        }
+
+        // Check if representative
+        const beneficiaryCount = row['กรณีเป็นตัวแทน\nระบุจำนวนผู้ที่ได้รับประโยชน์ร่วมกัน'] ||
+                                 row['จำนวนผู้รับประโยชน์'] ||
+                                 row['beneficiary_count'] ||
+                                 1;
+        const isRepresentative = beneficiaryCount && parseInt(beneficiaryCount) > 1;
+
+        return {
+          date: dateValue,
+          province: row['จังหวัด'] || row['province'] || '',
+          month_name: row['เดือน'] || row['month_name'] || '',
+          description: row['รายละเอียดประเด็น'] || row['รายละเอียด'] || row['description'] || '',
+          issue_type: row['ประเภทประเด็น'] || row['issue_type'] || '',
+          gender: row['เพศ'] || row['gender'] || '',
+          age: row['อายุ'] || row['age'] || null,
+          benefit_received: row['ประโยชน์ที่ได้รับ'] || row['benefit_received'] || '',
+          occupation: row['อาชีีพ'] || row['อาชีพ'] || row['occupation'] || '',
+          beneficiary_status: row['สถานะของผู้ได้รับประโยชน์'] || row['สถานะผู้รับประโยชน์'] || row['beneficiary_status'] || '',
+          organization_name: row['ชื่อองค์กร'] || row['organization_name'] || '',
+          beneficiary_count: parseInt(beneficiaryCount) || 1,
+          year: row['ปี'] || row['year'] || new Date().getFullYear(),
+          financial_damage: row['ความเสียหาย'] || row['financial_damage'] || null,
+          status: row['สถานะ'] || row['status'] || 'รับเรื่อง',
+          recorded_by: row['บันทึกโดย'] || row['recorded_by'] || '',
+          is_representative: isRepresentative
+        };
+      });
+
+      // Filter out invalid records (must have date and description)
+      const validRecords = records.filter(r => r.date && r.description);
+
+      if (validRecords.length === 0) {
+        alert('⚠️ ไม่พบข้อมูลที่ถูกต้อง (ต้องมีวันที่และรายละเอียด)');
+        setIsUploading(false);
+        return;
+      }
+
+      console.log(`✅ Valid records: ${validRecords.length} / ${records.length}`);
+
+      // Upload records one by one
+      setUploadProgress({ current: 0, total: validRecords.length });
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < validRecords.length; i++) {
+        try {
+          await serviceHistoryService.createServiceHistory(validRecords[i]);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to upload record ${i + 1}:`, error);
+          failCount++;
+        }
+        setUploadProgress({ current: i + 1, total: validRecords.length });
+      }
+
+      // Refresh list
+      queryClient.invalidateQueries(['service-history']);
+
+      // Show result
+      alert(`✅ อัปโหลดเสร็จสิ้น!\n- สำเร็จ: ${successCount} รายการ\n- ล้มเหลว: ${failCount} รายการ`);
+
+    } catch (error) {
+      console.error('Error uploading Excel:', error);
+      alert('❌ เกิดข้อผิดพลาดในการอัปโหลดไฟล์ Excel');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   // Filter data
   const filteredRecords = serviceHistory.filter(record => {
     const search = searchTerm.toLowerCase();
@@ -155,11 +348,22 @@ const AdminComplaints = () => {
     return matchSearch && matchProvince && matchIssueType && matchStatus && matchGender && matchYear;
   });
 
+  // Pagination
+  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filters]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">ประวัติการดำเนินการ</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">ประวัติดำเนินการ</h1>
         <p className="text-sm text-gray-600">
           จำนวน {loading ? '...' : `${filteredRecords.length} รายการ`}
           {filteredRecords.length !== serviceHistory.length && (
@@ -200,6 +404,27 @@ const AdminComplaints = () => {
           >
             เพิ่มข้อมูล
           </button>
+
+          {/* ปุ่มอัปโหลด Excel */}
+          <button
+            onClick={handleExcelUploadClick}
+            disabled={isUploading}
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            {isUploading ? 'กำลังอัปโหลด...' : 'อัปโหลด Excel'}
+          </button>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleExcelFileChange}
+            className="hidden"
+          />
         </div>
       </div>
 
@@ -210,46 +435,25 @@ const AdminComplaints = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto max-w-full">
+            <table className="min-w-full w-max">
               <thead className="bg-orange-500 text-white">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">ลำดับ</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">รหัสอ้างอิง</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
-                    <div className="flex items-center gap-1">
-                      วันที่
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
-                    <div className="flex items-center gap-1">
-                      จังหวัด
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">เดือน</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">รายละเอียดประเด็น</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">ประเภทประเด็น</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">เพศ</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">อายุ</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">ประโยชน์ที่ได้รับ</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">อาชีพ</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">สถานะของผู้ได้รับประโยชน์</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">ชื่อชุมชน/หน่วยงาน</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">จำนวนผู้ได้รับประโยชน์</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">ปี</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold">จัดการ</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">ลำดับ</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">รหัสอ้างอิง</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">วันที่</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">จังหวัด</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">รายละเอียดประเด็น</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">ประเภทประเด็น</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">เพศ</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold whitespace-nowrap">อายุ</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold whitespace-nowrap">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredRecords.length === 0 ? (
+                {paginatedRecords.length === 0 ? (
                   <tr>
-                    <td colSpan="16" className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan="9" className="px-4 py-12 text-center text-gray-500">
                       <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
@@ -257,38 +461,33 @@ const AdminComplaints = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map((record, index) => (
+                  paginatedRecords.map((record, index) => (
                     <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm">{index + 1}</td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">{startIndex + index + 1}</td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
                         <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
                           {record.record_number}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-4 py-3 text-sm whitespace-nowrap">
                         {record.date ? new Date(record.date).toLocaleDateString('th-TH', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric'
                         }) : '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm">{record.province || '-'}</td>
-                      <td className="px-4 py-3 text-sm">{record.month_name || '-'}</td>
-                      <td className="px-4 py-3 text-sm max-w-xs truncate" title={record.description}>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap max-w-[120px] truncate" title={record.province}>
+                        {record.province || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm max-w-[250px] truncate" title={record.description}>
                         {record.description || '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm">{record.issue_type || '-'}</td>
-                      <td className="px-4 py-3 text-sm">{record.gender || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-center">{record.age || '-'}</td>
-                      <td className="px-4 py-3 text-sm">{record.benefit_received || '-'}</td>
-                      <td className="px-4 py-3 text-sm">{record.occupation || '-'}</td>
-                      <td className="px-4 py-3 text-sm">{record.beneficiary_status || '-'}</td>
-                      <td className="px-4 py-3 text-sm">{record.organization_name || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-center">
-                        {record.is_representative ? record.beneficiary_count || 1 : '-'}
+                      <td className="px-4 py-3 text-sm whitespace-nowrap max-w-[150px] truncate" title={record.issue_type}>
+                        {record.issue_type || '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-center">{record.year || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-center">
+                      <td className="px-4 py-3 text-sm whitespace-nowrap text-center">{record.gender || '-'}</td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap text-center">{record.age || '-'}</td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap text-center">
                         <button
                           onClick={() => handleViewDetail(record)}
                           className="text-orange-600 hover:text-orange-700 font-medium transition-colors"
@@ -301,6 +500,65 @@ const AdminComplaints = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && filteredRecords.length > 0 && (
+          <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
+            <div className="text-sm text-gray-700">
+              แสดง {startIndex + 1} ถึง {Math.min(endIndex, filteredRecords.length)} จาก {filteredRecords.length} รายการ
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ← ก่อนหน้า
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    // Show first page, last page, current page, and pages around current
+                    return page === 1 ||
+                           page === totalPages ||
+                           Math.abs(page - currentPage) <= 1;
+                  })
+                  .map((page, index, arr) => {
+                    // Add ellipsis if there's a gap
+                    const prevPage = arr[index - 1];
+                    const showEllipsis = prevPage && page - prevPage > 1;
+
+                    return (
+                      <React.Fragment key={page}>
+                        {showEllipsis && (
+                          <span className="px-2 text-gray-500">...</span>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-2 text-sm font-medium rounded-lg ${
+                            currentPage === page
+                              ? 'bg-orange-600 text-white'
+                              : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ถัดไป →
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -744,6 +1002,49 @@ const AdminComplaints = () => {
                   'บันทึกข้อมูล'
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Progress Modal */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                <svg className="h-8 w-8 text-green-600 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">กำลังอัปโหลดข้อมูล</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                กรุณารอสักครู่... กำลังบันทึกข้อมูลลงในระบบ
+              </p>
+
+              {uploadProgress.total > 0 && (
+                <>
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm text-gray-600 mb-2">
+                      <span>ความคืบหน้า</span>
+                      <span className="font-semibold">
+                        {uploadProgress.current} / {uploadProgress.total}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-green-600 h-3 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${(uploadProgress.current / uploadProgress.total) * 100}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {Math.round((uploadProgress.current / uploadProgress.total) * 100)}% เสร็จสิ้น
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>

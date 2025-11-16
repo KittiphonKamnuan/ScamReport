@@ -1,0 +1,17 @@
+{
+    "name": "scamreport-line-webhook",
+    "version": "1.0.0",
+    "description": "LINE Webhook Handler for ScamReport",
+    "main": "index.js",
+    "type": "module",
+    "engines": {
+      "node": ">=22.0.0"
+    },
+    "dependencies": {
+      "@aws-sdk/client-dynamodb": "^3.705.0",
+      "@aws-sdk/client-s3": "^3.705.0",
+      "@aws-sdk/lib-dynamodb": "^3.705.0",
+      "@google/generative-ai": "^0.21.0",
+      "pg": "^8.13.1"
+    }
+  }

@@ -201,38 +201,44 @@ exports.handler = async (event) => {
             return await getComplaintMessages(conn, complaintId, origin);
         }
 
-        // Complaint Summary
+        // Complaint Summary - GET
         if (httpMethod === 'GET' && /^\/table\/complaints\/[^/]+\/summary$/.test(path)) {
             const complaintId = path.split('/')[3];
             return await getComplaintSummary(conn, complaintId, origin);
         }
 
+        // Complaint Summary - POST (Create new summary with AI)
+        if (httpMethod === 'POST' && /^\/table\/complaints\/[^/]+\/summary$/.test(path)) {
+            const complaintId = path.split('/')[3];
+            return await createComplaintSummary(conn, complaintId, origin);
+        }
+
         // ==================== SERVICE HISTORY ROUTES ====================
 
-        // GET /table/service-history/stats
-        if (httpMethod === 'GET' && path === '/table/service-history/stats') {
+        // GET /table/service_history/stats
+        if (httpMethod === 'GET' && path === '/table/service_history/stats') {
             return await getServiceHistoryStats(conn, queryParams, origin);
         }
 
-        // POST /table/service-history
-        if (httpMethod === 'POST' && path === '/table/service-history') {
+        // POST /table/service_history
+        if (httpMethod === 'POST' && path === '/table/service_history') {
             return await createServiceHistory(conn, event.body, origin);
         }
 
-        // PUT /table/service-history/:id
-        if (httpMethod === 'PUT' && /^\/table\/service-history\/[^/]+$/.test(path)) {
+        // PUT /table/service_history/:id
+        if (httpMethod === 'PUT' && /^\/table\/service_history\/[^/]+$/.test(path)) {
             const recordId = path.split('/')[3];
             return await updateServiceHistory(conn, recordId, event.body, origin);
         }
 
-        // DELETE /table/service-history/:id
-        if (httpMethod === 'DELETE' && /^\/table\/service-history\/[^/]+$/.test(path)) {
+        // DELETE /table/service_history/:id
+        if (httpMethod === 'DELETE' && /^\/table\/service_history\/[^/]+$/.test(path)) {
             const recordId = path.split('/')[3];
             return await deleteServiceHistory(conn, recordId, origin);
         }
 
-        // GET /table/service-history/record/:recordNumber
-        if (httpMethod === 'GET' && /^\/table\/service-history\/record\/[^/]+$/.test(path)) {
+        // GET /table/service_history/record/:recordNumber
+        if (httpMethod === 'GET' && /^\/table\/service_history\/record\/[^/]+$/.test(path)) {
             const recordNumber = path.split('/')[4];
             return await getServiceHistoryByRecordNumber(conn, recordNumber, origin);
         }
@@ -361,7 +367,9 @@ async function getComplaintSummary(conn, complaintId, origin) {
             c.contact_phone,
             c.line_display_name,
             c.line_user_id,
-            c.financial_damage
+            c.financial_damage,
+            c.total_loss_amount,
+            c.category
         FROM summaries s
         INNER JOIN complaints c ON s.complaint_id = c.id
         WHERE s.complaint_id = $1
@@ -375,7 +383,8 @@ async function getComplaintSummary(conn, complaintId, origin) {
         // Return complaint info without summary
         const complaintCheck = await conn.query(`
             SELECT id, title, contact_name, contact_phone,
-                   line_display_name, line_user_id, financial_damage
+                   line_display_name, line_user_id, financial_damage,
+                   total_loss_amount, category
             FROM complaints
             WHERE id = $1
         `, [complaintId]);
@@ -392,7 +401,10 @@ async function getComplaintSummary(conn, complaintId, origin) {
             contact_phone: complaint.contact_phone,
             line_display_name: complaint.line_display_name,
             line_id: complaint.line_user_id,
-            amount: complaint.financial_damage,
+            amount: complaint.total_loss_amount || complaint.financial_damage,
+            total_loss_amount: complaint.total_loss_amount,
+            loss_amount: complaint.financial_damage,
+            category: complaint.category,
             complaint_id: complaintId,
             message: 'No summary available for this complaint'
         }, origin);
@@ -443,15 +455,378 @@ async function getComplaintSummary(conn, complaintId, origin) {
         contact_phone: row.contact_phone,
         line_display_name: row.line_display_name,
         line_id: row.line_user_id,
-        amount: row.financial_damage,
+        amount: row.total_loss_amount || row.financial_damage,
+        total_loss_amount: row.total_loss_amount,
         loss_amount: row.financial_damage,
+        category: row.category,
         complaint_id: complaintId
     }, origin);
 }
 
+// ===================== CREATE COMPLAINT SUMMARY WITH AI =====================
+async function createComplaintSummary(conn, complaintId, origin) {
+    if (!isValidUUID(complaintId)) {
+        return response(400, { error: 'Invalid complaint ID format' }, origin);
+    }
+
+    try {
+        console.log(`🤖 Generating AI summary for complaint: ${complaintId}`);
+
+        // 1. Fetch all messages for this complaint
+        const messagesQuery = `
+            SELECT content, sent_at, is_from_user
+            FROM messages
+            WHERE complaint_id = $1
+            ORDER BY sent_at ASC
+        `;
+        const messagesResult = await conn.query(messagesQuery, [complaintId]);
+
+        if (messagesResult.rows.length === 0) {
+            return response(404, { error: 'No messages found for this complaint' }, origin);
+        }
+
+        // 2. Combine messages into text
+        const fullText = messagesResult.rows
+            .filter(m => m.content && m.content.trim())
+            .map(m => m.content)
+            .join('\n\n');
+
+        if (!fullText || fullText.trim().length < 10) {
+            return response(400, { error: 'Insufficient message content for summarization' }, origin);
+        }
+
+        console.log(`📝 Full text length: ${fullText.length} characters`);
+
+        // 3. Extract entities from text (phone, amount, etc.)
+        const entities = extractEntities(fullText);
+        console.log('📋 Extracted entities:', entities);
+
+        // 4. Call Gemini AI to generate summary and categorize
+        const aiSummary = await analyzeWithGemini(fullText, entities);
+
+        if (!aiSummary || !aiSummary.summary) {
+            return response(500, { error: 'Failed to generate AI summary' }, origin);
+        }
+
+        console.log('✅ AI summary generated successfully');
+
+        // 5. Update complaint with extracted information
+        const updateFields = [];
+        const updateValues = [];
+        let paramIndex = 1;
+
+        // Update contact phone (prefer AI result, fallback to entities)
+        const contactPhone = aiSummary.contactPhone || (entities.phones && entities.phones.length > 0 ? entities.phones[0] : null);
+        if (contactPhone) {
+            updateFields.push(`contact_phone = $${paramIndex++}`);
+            updateValues.push(contactPhone);
+        }
+
+        // Update contact name from AI
+        if (aiSummary.victimName) {
+            updateFields.push(`contact_name = $${paramIndex++}`);
+            updateValues.push(aiSummary.victimName);
+        }
+
+        // Update total loss amount (prefer AI result, fallback to entities)
+        const lossAmount = aiSummary.lossAmount || (entities.amounts && entities.amounts.length > 0 ? Math.max(...entities.amounts) : null);
+        if (lossAmount) {
+            updateFields.push(`total_loss_amount = $${paramIndex++}`);
+            updateValues.push(lossAmount);
+        }
+
+        // Update category based on AI analysis
+        if (aiSummary.category) {
+            const categoryMap = {
+                'การโกง': 'fraud',
+                'การหลอกลวง': 'fraud',
+                'ฉ้อโกง': 'fraud',
+                'คดีความ': 'legal_issue',
+                'ทนายความ': 'legal_issue',
+                'แจ้งเบาะแส': 'tip_off',
+                'เตือนภัย': 'tip_off'
+            };
+            const category = categoryMap[aiSummary.category] || aiSummary.category;
+            if (['fraud', 'legal_issue', 'tip_off'].includes(category)) {
+                updateFields.push(`category = $${paramIndex++}::complaint_category`);
+                updateValues.push(category);
+            }
+        }
+
+        // Update complaint if we have any fields to update
+        let updatedComplaintData = null;
+        if (updateFields.length > 0) {
+            updateValues.push(complaintId);
+            const updateQuery = `
+                UPDATE complaints
+                SET ${updateFields.join(', ')}, updated_at = NOW()
+                WHERE id = $${paramIndex}
+                RETURNING id, contact_phone, contact_name, total_loss_amount, category
+            `;
+            const updateResult = await conn.query(updateQuery, updateValues);
+            updatedComplaintData = updateResult.rows[0];
+            console.log('✅ Complaint updated with extracted data:', updatedComplaintData);
+        }
+
+        // 4. Save summary to database
+        const insertQuery = `
+            INSERT INTO summaries (
+                complaint_id,
+                summary_text,
+                summary_type,
+                key_points,
+                word_count,
+                generated_by
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+        `;
+
+        const summaryValues = [
+            complaintId,
+            aiSummary.summary || aiSummary.title,
+            'auto',
+            JSON.stringify(aiSummary.keyPoints || []),
+            aiSummary.summary ? aiSummary.summary.length : 0,
+            null  // generated_by is UUID, set to NULL for AI-generated summaries
+        ];
+
+        const insertResult = await conn.query(insertQuery, summaryValues);
+        const savedSummary = insertResult.rows[0];
+
+        // 5. Invalidate cache
+        cache.clear(`summary_${complaintId}`);
+        console.log(`🗑️  Cleared cache: summary_${complaintId}`);
+
+        console.log('✅ Summary saved successfully');
+
+        // 6. Return complete data including updated complaint info
+        const responseData = {
+            // Summary data
+            id: savedSummary.id,
+            complaint_id: savedSummary.complaint_id,
+            summary: savedSummary.summary_text,
+            summary_text: savedSummary.summary_text,
+            key_points: savedSummary.key_points,
+            word_count: savedSummary.word_count,
+            created_at: savedSummary.created_at,
+            updated_at: savedSummary.updated_at,
+
+            // Updated complaint data
+            contact_phone: updatedComplaintData?.contact_phone || null,
+            contact_name: updatedComplaintData?.contact_name || null,
+            total_loss_amount: updatedComplaintData?.total_loss_amount || null,
+            amount: updatedComplaintData?.total_loss_amount || null,
+            category: updatedComplaintData?.category || null,
+
+            // AI analysis details
+            scam_type: aiSummary.scamType || null,
+            timeline: aiSummary.timeline || null,
+
+            message: 'Summary generated and saved successfully'
+        };
+
+        console.log('📤 Response data:', JSON.stringify(responseData, null, 2));
+
+        return response(201, responseData, origin);
+
+    } catch (error) {
+        console.error('❌ Error creating complaint summary:', error);
+        return response(500, {
+            error: 'Failed to create summary',
+            message: error.message
+        }, origin);
+    }
+}
+
+// ===================== ENTITY EXTRACTOR =====================
+function extractEntities(text) {
+    if (!text) {
+        return {
+            amounts: [],
+            phones: [],
+            urls: [],
+            bankAccounts: [],
+            lineIds: []
+        };
+    }
+
+    const entities = {
+        amounts: [],
+        phones: [],
+        urls: [],
+        bankAccounts: [],
+        lineIds: []
+    };
+
+    // Extract amounts
+    const amountPatterns = [
+        /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:บาท|baht|THB|฿)/gi,
+        /฿\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi,
+        /(\d+)\s*(?:ล้าน)/gi,
+        /(\d+)\s*(?:แสน)/gi,
+        /(\d+)\s*(?:หมื่น)/gi,
+        /(\d+)\s*(?:พัน)/gi
+    ];
+
+    amountPatterns.forEach(pattern => {
+        const matches = text.matchAll(pattern);
+        for (const match of matches) {
+            let amount = parseFloat(match[1].replace(/,/g, ''));
+
+            // Convert Thai number words
+            if (text.includes('ล้าน')) amount *= 1000000;
+            else if (text.includes('แสน')) amount *= 100000;
+            else if (text.includes('หมื่น')) amount *= 10000;
+            else if (text.includes('พัน')) amount *= 1000;
+
+            if (amount > 0) {
+                entities.amounts.push(amount);
+            }
+        }
+    });
+
+    // Extract phone numbers
+    const phonePattern = /0[689]\d{8}/g;
+    const phoneMatches = text.match(phonePattern);
+    if (phoneMatches) {
+        entities.phones.push(...phoneMatches);
+    }
+
+    // Extract URLs
+    const urlPattern = /https?:\/\/[^\s]+/gi;
+    const urlMatches = text.match(urlPattern);
+    if (urlMatches) {
+        entities.urls.push(...urlMatches);
+    }
+
+    // Extract LINE IDs
+    const lineIdPattern = /(?:LINE ID|ไลน์)\s*[:：]?\s*([a-zA-Z0-9._-]+)/gi;
+    const lineIdMatches = text.matchAll(lineIdPattern);
+    for (const match of lineIdMatches) {
+        entities.lineIds.push(match[1]);
+    }
+
+    // Deduplicate
+    entities.amounts = [...new Set(entities.amounts)];
+    entities.phones = [...new Set(entities.phones)];
+    entities.urls = [...new Set(entities.urls)];
+    entities.lineIds = [...new Set(entities.lineIds)];
+
+    return entities;
+}
+
+// ===================== GEMINI AI HELPER =====================
+async function analyzeWithGemini(text, entities = {}) {
+    try {
+        // Check if Gemini API key is configured
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        if (!GEMINI_API_KEY) {
+            console.warn('⚠️ GEMINI_API_KEY not configured, using mock summary');
+            return {
+                summary: 'สรุปโดยระบบ: ' + text.substring(0, 200) + '...',
+                title: 'สรุปอัตโนมัติ',
+                keyPoints: ['ต้องการการตั้งค่า Gemini API Key'],
+                scamType: 'ไม่สามารถระบุได้',
+                urgencyAssessment: 'ปานกลาง',
+                recommendedAction: 'ตรวจสอบและติดตามเรื่อง'
+            };
+        }
+
+        const entitiesInfo = entities ? `
+ข้อมูลที่สกัดได้:
+- เบอร์โทร: ${entities.phones?.join(', ') || 'ไม่มี'}
+- จำนวนเงิน: ${entities.amounts?.join(', ') || 'ไม่มี'} บาท
+- URLs: ${entities.urls?.join(', ') || 'ไม่มี'}
+- LINE ID: ${entities.lineIds?.join(', ') || 'ไม่มี'}
+` : '';
+
+        const prompt = `คุณคือ AI ผู้ช่วยวิเคราะห์เรื่องร้องเรียนสำหรับนักข่าว
+
+ข้อความร้องเรียน:
+${text}
+${entitiesInfo}
+
+กรุณาวิเคราะห์และสรุปในรูปแบบ JSON:
+{
+  "summary": "สรุปสั้นๆ 3-5 ประโยค",
+  "title": "หัวข้อข่าว (ไม่เกิน 100 ตัวอักษร)",
+  "keyPoints": ["จุดสำคัญ 1", "จุดสำคัญ 2", "จุดสำคัญ 3"],
+  "category": "ประเภทการร้องเรียน: การโกง, การหลอกลวง, คดีความ, ทนายความ, แจ้งเบาะแส, หรือ เตือนภัย",
+  "scamType": "ประเภทการหลอกลวงโดยละเอียด (เช่น Call Center, ลงทุนปลอม, Love Scam)",
+  "victimName": "ชื่อผู้เสียหาย (ถ้าพบในข้อความ)",
+  "contactPhone": "เบอร์โทรผู้เสียหาย (ถ้าพบในข้อความ)",
+  "lossAmount": จำนวนเงินที่สูญเสีย (ตัวเลข, null ถ้าไม่มี),
+  "urgencyAssessment": "ประเมินความเร่งด่วน",
+  "recommendedAction": "คำแนะนำเบื้องต้น"
+}
+
+ตอบเป็น JSON เท่านั้น ไม่ต้องมีคำอธิบายเพิ่มเติม`;
+
+        // Call Gemini API
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`;
+
+        const requestBody = {
+            contents: [{
+                parts: [{
+                    text: prompt
+                }]
+            }]
+        };
+
+        console.log('🤖 Calling Gemini API...');
+
+        const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Gemini API error:', errorText);
+            throw new Error(`Gemini API returned ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Extract text from Gemini response
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!textResponse) {
+            throw new Error('No response from Gemini AI');
+        }
+
+        console.log('✅ Gemini response received');
+
+        // Extract JSON from response
+        const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const analysis = JSON.parse(jsonMatch[0]);
+            console.log('✅ Gemini AI analysis parsed successfully');
+            return analysis;
+        }
+
+        throw new Error('Could not extract JSON from Gemini response');
+
+    } catch (error) {
+        console.error('❌ Gemini AI error:', error);
+        // Return fallback summary
+        return {
+            summary: 'ไม่สามารถสร้างสรุปอัตโนมัติได้ กรุณาตรวจสอบการตั้งค่า API',
+            title: 'สรุปอัตโนมัติ',
+            keyPoints: ['ตรวจสอบข้อมูลเพิ่มเติม'],
+            scamType: 'ไม่สามารถระบุได้',
+            urgencyAssessment: 'ปานกลาง',
+            recommendedAction: 'ตรวจสอบรายละเอียดเพิ่มเติม'
+        };
+    }
+}
+
 // ===================== SERVICE HISTORY HANDLERS =====================
 
-// GET /table/service-history/stats
+// GET /table/service_history/stats
 async function getServiceHistoryStats(conn, queryParams, origin) {
     try {
         const year = queryParams.year;
@@ -530,7 +905,7 @@ async function getServiceHistoryStats(conn, queryParams, origin) {
     }
 }
 
-// POST /table/service-history
+// POST /table/service_history
 async function createServiceHistory(conn, body, origin) {
     try {
         const data = JSON.parse(body || '{}');
@@ -598,7 +973,7 @@ async function createServiceHistory(conn, body, origin) {
     }
 }
 
-// PUT /table/service-history/:id
+// PUT /table/service_history/:id
 async function updateServiceHistory(conn, recordId, body, origin) {
     if (!isValidUUID(recordId)) {
         return response(400, { error: 'Invalid record ID format' }, origin);
@@ -679,7 +1054,7 @@ async function updateServiceHistory(conn, recordId, body, origin) {
     }
 }
 
-// DELETE /table/service-history/:id
+// DELETE /table/service_history/:id
 async function deleteServiceHistory(conn, recordId, origin) {
     if (!isValidUUID(recordId)) {
         return response(400, { error: 'Invalid record ID format' }, origin);
@@ -715,7 +1090,7 @@ async function deleteServiceHistory(conn, recordId, origin) {
     }
 }
 
-// GET /table/service-history/record/:recordNumber
+// GET /table/service_history/record/:recordNumber
 async function getServiceHistoryByRecordNumber(conn, recordNumber, origin) {
     try {
         // Validate record number format (HIS-YYYYMM-XXXX)
