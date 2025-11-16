@@ -1,23 +1,42 @@
 // src/services/complaintApi.js
 import axios from 'axios';
 
-// ใช้ relative URL ใน development (จะผ่าน Vite proxy)
-// ใช้ Lambda URL จริงใน production
-const API_BASE_URL = import.meta.env.DEV
-  ? '' // Development: ใช้ relative URL (Vite proxy จะจัดการ CORS)
-  : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_ADMIN_API_URL);
+// ==============================
+// API Base URL
+// ==============================
 
-console.log('API_BASE_URL:', API_BASE_URL, 'Mode:', import.meta.env.MODE);
+// ใช้ค่าเดียวกับที่ใช้ใน frontend ส่วนอื่น ๆ
+// (.env มี VITE_API_BASE_URL=https://ezwsun6v5h.execute-api.us-east-1.amazonaws.com/dev)
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_ADMIN_API_URL ||
+  '';
 
-// สร้าง axios instance
+console.log(
+  'API_BASE_URL (complaintApi):',
+  API_BASE_URL || '(EMPTY)',
+  'Mode:',
+  import.meta.env.MODE
+);
+
+if (!API_BASE_URL) {
+  console.warn(
+    '[complaintApi] API_BASE_URL is empty. Please set VITE_API_BASE_URL in your .env file.'
+  );
+}
+
+// ==============================
+// Axios instance
+// ==============================
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
-// Interceptor สำหรับเพิ่ม token (ปิดไว้ก่อนเพราะ Lambda ไม่ได้ใช้ JWT auth)
+// ถ้าอนาคตต้องใช้ JWT ก็เปิด interceptor นี้ได้
 // apiClient.interceptors.request.use(
 //   (config) => {
 //     const token = localStorage.getItem('authToken');
@@ -26,25 +45,38 @@ const apiClient = axios.create({
 //     }
 //     return config;
 //   },
-//   (error) => {
-//     return Promise.reject(error);
-//   }
+//   (error) => Promise.reject(error)
 // );
 
-// Helper function สำหรับ parse Lambda response
+// ==============================
+// Helper: parse Lambda response
+// (กันเผื่อกรณีบาง endpoint ยังห่อ { statusCode, body })
+// ==============================
 const parseLambdaResponse = (data) => {
-  if (data.body && typeof data.body === 'string') {
-    return JSON.parse(data.body);
+  if (data && typeof data === 'object' && 'body' in data && typeof data.body === 'string') {
+    try {
+      return JSON.parse(data.body);
+    } catch (e) {
+      console.error('[complaintApi] Failed to parse Lambda body JSON:', e);
+      return data;
+    }
   }
   return data;
 };
 
+// ==============================
+// Public API
+// ==============================
+
 export const complaintApi = {
+  // ------- Complaints -------
+
   // ดึงรายการร้องเรียนทั้งหมด
   getComplaints: async (params = {}) => {
     try {
       const response = await apiClient.get('/table/complaints', { params });
       const data = parseLambdaResponse(response.data);
+      // ถ้า backend ห่อเป็น { data: [...] } ก็ใช้ .data, ถ้าไม่ห่อก็คืนทั้งก้อน
       return data.data || data;
     } catch (error) {
       console.error('Error fetching complaints:', error);
@@ -52,7 +84,7 @@ export const complaintApi = {
     }
   },
 
-  // ดึงรายการตาม ID
+  // ดึงร้องเรียนตาม ID
   getComplaintById: async (id) => {
     try {
       const response = await apiClient.get(`/table/complaints/${id}`);
@@ -76,17 +108,22 @@ export const complaintApi = {
     }
   },
 
-  // ============= Messages API =============
+  // ------- Messages / Summary -------
 
-  // ดึงข้อความ/แชททั้งหมดของ complaint (พร้อม complaint_title)
+  // ดึงข้อความ/แชททั้งหมดของ complaint (พร้อม complaint_title, status ฯลฯ)
   getComplaintMessages: async (complaintId) => {
     try {
-      const response = await apiClient.get(`/table/complaints/${complaintId}/messages`);
+      const response = await apiClient.get(
+        `/table/complaints/${complaintId}/messages`
+      );
       const data = parseLambdaResponse(response.data);
-      // Return ทั้ง response เพื่อรวม complaint_title และ complaint_status
+      // data ควรมี { messages, complaint_title, complaint_status, ... }
       return data;
     } catch (error) {
-      console.error(`Error fetching messages for complaint ${complaintId}:`, error);
+      console.error(
+        `Error fetching messages for complaint ${complaintId}:`,
+        error
+      );
       throw error;
     }
   },
@@ -94,7 +131,9 @@ export const complaintApi = {
   // ดึง summary ของแชท
   getComplaintSummary: async (complaintId) => {
     try {
-      const response = await apiClient.get(`/table/complaints/${complaintId}/summary`);
+      const response = await apiClient.get(
+        `/table/complaints/${complaintId}/summary`
+      );
       const data = parseLambdaResponse(response.data);
       return data.summary || data.data || data;
     } catch (error) {
@@ -103,19 +142,24 @@ export const complaintApi = {
     }
   },
 
-  // สร้าง summary ใหม่สำหรับแชท
+  // สร้าง summary ใหม่
   createComplaintSummary: async (complaintId) => {
     try {
-      const response = await apiClient.post(`/table/complaints/${complaintId}/summary`);
+      const response = await apiClient.post(
+        `/table/complaints/${complaintId}/summary`
+      );
       const data = parseLambdaResponse(response.data);
       return data.summary || data.data || data;
     } catch (error) {
-      console.error(`Error creating summary for complaint ${complaintId}:`, error);
+      console.error(
+        `Error creating summary for complaint ${complaintId}:`,
+        error
+      );
       throw error;
     }
   },
 
-  // ============= Categories API =============
+  // ------- Categories -------
 
   // ดึง categories ทั้งหมด
   getCategories: async () => {
@@ -153,10 +197,13 @@ export const complaintApi = {
     }
   },
 
-  // อัพเดท category
+  // อัปเดต category
   updateCategory: async (id, categoryData) => {
     try {
-      const response = await apiClient.put(`/table/categories/${id}`, categoryData);
+      const response = await apiClient.put(
+        `/table/categories/${id}`,
+        categoryData
+      );
       const data = parseLambdaResponse(response.data);
       return data.category || data.data || data;
     } catch (error) {
@@ -175,5 +222,5 @@ export const complaintApi = {
       console.error(`Error deleting category ${id}:`, error);
       throw error;
     }
-  }
+  },
 };
