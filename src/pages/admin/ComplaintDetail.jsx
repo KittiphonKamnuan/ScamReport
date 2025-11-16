@@ -90,30 +90,31 @@ const ComplaintDetail = () => {
 
   // 🔽 (*** นี่คือจุดที่แก้ไขทั้งหมด ***) 🔽
   // ฟังก์ชันสำหรับปุ่ม "สร้างสรุป"
-  const handleSummarizeClick = async () => {
+  // ฟังก์ชันสำหรับปุ่ม "สร้างสรุป"
+const handleSummarizeClick = async () => {
     setIsSummarizing(true);
     setSummaryError(null);
     try {
       console.log('Calling createComplaintSummary API (Lambda 2)...');
-      
+
       // 1. เรียก API (ตัวที่ยิงไป Lambda ใหม่: ai-summarizer-api)
       // newSummaryData จะมีหน้าตาแบบ: { id: '...', summary: '...', key_points: '...', contact_phone: ... }
       const newSummaryData = await complaintApi.createComplaintSummary(id);
       console.log('API response (from Lambda 2):', newSummaryData);
-      
+
       // 2. (สำคัญ!) เราจะไม่เรียก await loadSummary()
       // แต่เราจะ "สร้าง" object state ใหม่ ให้มีโครงสร้างเหมือนกับที่ loadSummary() สร้าง
       // เพื่อให้ JSX แสดงผลได้ถูกต้อง
       setSummary(prevSummary => ({
         // 1. เก็บของเก่าจาก Lambda 1 (เช่น complaint_title, line_id)
         ...prevSummary, 
-        
+
         // 2. อัปเดตข้อมูลติดต่อ (จาก Lambda 2)
         contact_name: newSummaryData.contact_name,
         contact_phone: newSummaryData.contact_phone,
         amount: newSummaryData.amount,
         category: newSummaryData.category,
-        
+
         // 3. สร้าง/อัปเดต "summary" (object ที่ซ้อนอยู่)
         summary: {
           id: newSummaryData.id,
@@ -128,12 +129,12 @@ const ComplaintDetail = () => {
     } catch (err) {
       console.error('Error creating AI summary:', err);
       // (แสดง Error ที่ได้จาก Lambda)
-      const errorBody = err.response?.data?.body ? JSON.parse(err.response.data.body) : null;
-      setSummaryError(errorBody?.error || err.response?.data?.error || err.message || 'ไม่สามารถสร้างสรุปได้');
+      const errorBody = err.response?.data?.body ? JSON.parse(err.response.data.body) : (err.response?.data || {});
+      setSummaryError(errorBody?.error || err.message || 'ไม่สามารถสร้างสรุปได้');
     } finally {
       setIsSummarizing(false);
     }
-  };
+};
   // 🔼 (*** สิ้นสุดส่วนที่แก้ไข ***) 🔼
 
   // ... (ฟังก์ชัน formatDate, formatAmount, loading, error เหมือนเดิม) ...
@@ -254,7 +255,7 @@ const ComplaintDetail = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => navigate('/admin/history')}
+                onClick={() => navigate(-1)}
                 className="text-gray-600 hover:text-gray-800 flex items-center"
               >
                 <svg

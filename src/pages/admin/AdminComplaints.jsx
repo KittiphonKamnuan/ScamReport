@@ -115,10 +115,40 @@ const AdminComplaints = () => {
   // Handle form input change
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+
+    // 🔽 (*** นี่คือโค้ดที่แก้ไข ***) 🔽
+    // ถ้า field ที่เปลี่ยนคือ "date"
+    if (name === 'date') {
+      if (value) {
+        // ถ้ามีค่า (e.g., "2025-11-16")
+        const newDate = new Date(value);
+        const newYear = newDate.getFullYear();
+        // ดึงชื่อเดือนภาษาไทย
+        const newMonthName = newDate.toLocaleString('th-TH', { month: 'long' });
+
+        setFormData(prev => ({
+          ...prev,
+          date: value,
+          year: newYear,
+          month_name: newMonthName
+        }));
+      } else {
+        // ถ้าผู้ใช้ลบวันที่ (value = '')
+        setFormData(prev => ({
+          ...prev,
+          date: '',
+          year: new Date().getFullYear(), // Reset กลับเป็นปีปัจจุบัน
+          month_name: ''
+        }));
+      }
+    } else {
+      // Field อื่นๆ (province, description, etc.)
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
+    }
+    // 🔼 (*** สิ้นสุดส่วนที่แก้ไข ***) 🔼
   };
 
   // Handle form submit
