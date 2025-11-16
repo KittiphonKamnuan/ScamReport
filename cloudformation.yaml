@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "ScamerReport static website S3 bucket"
+
+Resources:
+  # S3 Bucket สำหรับ Static Website
+  ScamerBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "scamerreport-frontend-${AWS::AccountId}-${AWS::Region}"
+      
+      # ⭐ เปิดใช้ Static Website Hosting
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html  # ✅ แก้เป็น index.html สำหรับ React Router
+      
+      # ⭐ ปิด Block Public Access
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      
+      # Tags สำหรับจัดการ
+      Tags:
+        - Key: Project
+          Value: ScamerReport
+        - Key: Environment
+          Value: Production
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ⭐ Bucket Policy สำหรับ Public Read Access
+  ScamerBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ScamerBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Sub "${ScamerBucket.Arn}/*"
+
+Outputs:
+  WebsiteURL:
+    Description: "Static website URL"
+    Value: !GetAtt ScamerBucket.WebsiteURL
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteURL"
+  
+  BucketName:
+    Description: "S3 Bucket name"
+    Value: !Ref ScamerBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-BucketName"
+  
+  BucketArn:
+    Description: "S3 Bucket ARN"
+    Value: !GetAtt ScamerBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-BucketArn"
