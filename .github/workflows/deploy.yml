@@ -3,7 +3,7 @@ name: Deploy Frontend to S3
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:  # ⭐ เพิ่มเพื่อให้ trigger manual ได้
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -25,15 +25,10 @@ jobs:
       - name: Build Vite app
         run: npm run build
         env:
-          # ⭐ AWS Cognito Configuration
           VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
           VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID }}
           VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID }}
-          
-          # ⭐ API Configuration
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          
-          # ⭐ Optional: AI API
           VITE_AI_API_URL: ${{ secrets.VITE_AI_API_URL }}
 
       - name: Configure AWS Credentials
@@ -48,13 +43,11 @@ jobs:
         run: |
           echo "📤 Uploading files to S3..."
           
-          # Sync all files except index.html with long cache
           aws s3 sync ./dist s3://scamerreport-frontend-410812557104-us-east-1 \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "index.html"
           
-          # Upload index.html with no cache (for React Router)
           aws s3 cp ./dist/index.html \
             s3://scamerreport-frontend-410812557104-us-east-1/index.html \
             --cache-control "public, max-age=0, must-revalidate" \
