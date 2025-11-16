@@ -1,18 +1,17 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "ScamerReport static website S3 bucket"
+Description: "ScamReport Frontend - S3 Static Website (HTTP)"
 
 Resources:
-  # S3 Bucket สำหรับ Static Website
   ScamerBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
       BucketName: !Sub "scamerreport-frontend-${AWS::AccountId}-${AWS::Region}"
       
-      # ⭐ เปิดใช้ Static Website Hosting
+      # ⭐ เปิด Static Website Hosting
       WebsiteConfiguration:
         IndexDocument: index.html
-        ErrorDocument: index.html  # ✅ แก้เป็น index.html สำหรับ React Router
+        ErrorDocument: index.html
       
       # ⭐ ปิด Block Public Access
       PublicAccessBlockConfiguration:
@@ -21,16 +20,11 @@ Resources:
         IgnorePublicAcls: false
         RestrictPublicBuckets: false
       
-      # Tags สำหรับจัดการ
       Tags:
         - Key: Project
-          Value: ScamerReport
-        - Key: Environment
-          Value: Production
-        - Key: ManagedBy
-          Value: CloudFormation
+          Value: ScamReport
 
-  # ⭐ Bucket Policy สำหรับ Public Read Access
+  # Bucket Policy - Public Read
   ScamerBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -44,21 +38,54 @@ Resources:
             Action: "s3:GetObject"
             Resource: !Sub "${ScamerBucket.Arn}/*"
 
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: scamerreport-users
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: scamerreport-web-client
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
 Outputs:
   WebsiteURL:
-    Description: "Static website URL"
+    Description: "Static website URL (HTTP)"
     Value: !GetAtt ScamerBucket.WebsiteURL
     Export:
       Name: !Sub "${AWS::StackName}-WebsiteURL"
-  
+
   BucketName:
-    Description: "S3 Bucket name"
+    Description: "S3 Bucket Name"
     Value: !Ref ScamerBucket
     Export:
       Name: !Sub "${AWS::StackName}-BucketName"
-  
-  BucketArn:
-    Description: "S3 Bucket ARN"
-    Value: !GetAtt ScamerBucket.Arn
+
+  UserPoolId:
+    Description: "Cognito User Pool ID"
+    Value: !Ref UserPool
     Export:
-      Name: !Sub "${AWS::StackName}-BucketArn"
+      Name: !Sub "${AWS::StackName}-UserPoolId"
+
+  UserPoolClientId:
+    Description: "Cognito User Pool Client ID"
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolClientId"
